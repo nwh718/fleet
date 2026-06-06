@@ -1,0 +1,45 @@
+diff --git a/ee/server/service/in_house_apps.go b/ee/server/service/in_house_apps.go
+index 1234567..abcdefg 100644
+--- a/ee/server/service/in_house_apps.go
++++ b/ee/server/service/in_house_apps.go
+@@ -331,4 +331,41 @@ func inHouseTeamIDPtr(teamID uint) *uint {
+ 	}
+ 	return new(teamID)
+ }
++
++// VerifyInstallToken checks whether the supplied install token is valid for the
++// iOS device identified by its UDID. It collapses missing, expired, and
++// device-mismatch into a single (false, nil) result so callers cannot
++// distinguish between them.
++func (svc *Service) VerifyInstallToken(ctx context.Context, token string, deviceUDID string) (bool, error) {
++	if len(token) != inHouseAppInstallTokenLength {
++		return false, nil
++	}
++
++	host, err := svc.ds.HostLiteByIdentifier(ctx, deviceUDID)
++	if err != nil {
++		if fleet.IsNotFound(err) {
++			return false, nil
++		}
++		return false, ctxerr.Wrap(ctx, err, "lookup host by device UDID")
++	}
++
++	meta, err := svc.ds.GetInHouseAppInstallTokenMetadata(ctx, token)
++	if err != nil {
++		if fleet.IsNotFound(err) {
++			svc.logger.WarnContext(ctx, "verify install token: token not found or expired",
++				"host_id", host.ID)
++			return false, nil
++		}
++		return false, ctxerr.Wrap(ctx, err, "lookup install token")
++	}
++
++	if meta.HostID != host.ID {
++		svc.logger.WarnContext(ctx, "verify install token: device mismatch",
++			"token_host_id", meta.HostID,
++			"device_host_id", host.ID)
++		return false, nil
++	}
++
++	return true, nil
++}
