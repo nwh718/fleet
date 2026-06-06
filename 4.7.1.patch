@@ -1,0 +1,435 @@
+diff --git a/frontend/hooks/useInviteVerification.ts b/frontend/hooks/useInviteVerification.ts
+deleted file mode 100644
+index 0165413698..0000000000
+--- a/frontend/hooks/useInviteVerification.ts
++++ /dev/null
+@@ -1,28 +0,0 @@
+-import { useQuery } from "react-query";
+-import { AxiosError } from "axios";
+-
+-import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
+-import { IInvite } from "interfaces/invite";
+-import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+-
+-interface IUseInviteVerificationReturn {
+-    data: IInvite | undefined;
+-    isLoading: boolean;
+-    error: AxiosError | null;
+-}
+-
+-const useInviteVerification = (inviteToken: string): IUseInviteVerificationReturn => {
+-    const { data, isLoading, error } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
+-        ["invite", inviteToken],
+-        () => inviteAPI.verify(inviteToken),
+-        {
+-            ...DEFAULT_USE_QUERY_OPTIONS,
+-            retry: 2,
+-            select: (resp: IValidateInviteResponse) => resp.invite,
+-        }
+-    );
+-
+-    return { data, isLoading, error };
+-};
+-
+-export default useInviteVerification;
+diff --git a/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx b/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx
+index 18e17ad0e4..7ac39aec30 100644
+--- a/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx
++++ b/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx
+@@ -7,35 +7,84 @@ import { NotificationContext } from "context/notification";
+ import { ICreateUserWithInvitationFormData } from "interfaces/user";
+ import paths from "router/paths";
+ import usersAPI from "services/entities/users";
++import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
++
++import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
++import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
++import { useQuery } from "react-query";
++import { IInvite } from "interfaces/invite";
++
++import { useQuery } from "react-query";
++import { IInvite } from "interfaces/invite";
++
++import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
++import { IInvite } from "interfaces/invite";
+ import AuthenticationFormWrapper from "components/AuthenticationFormWrapper";
++import { AxiosError } from "axios";
++import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+ import Spinner from "components/Spinner";
++import { useQuery } from "react-query";
++  router: InjectedRouter; // v3
++import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+ import ConfirmInviteForm from "components/forms/ConfirmInviteForm";
+ import { IConfirmInviteFormData } from "components/forms/ConfirmInviteForm/ConfirmInviteForm";
+ import { getErrorReason } from "interfaces/errors";
+-import useInviteVerification from "hooks/useInviteVerification";
++import { AxiosError } from "axios";
++import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+ 
+ interface IConfirmInvitePageProps {
+-  router: InjectedRouter;
++  router: InjectedRouter; // v3
+   params: Params;
+ }
++  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
++    "invite",
++    () => inviteAPI.verify(invite_token),
++    {
++      ...DEFAULT_USE_QUERY_OPTIONS,
++      select: (resp: IValidateInviteResponse) => resp.invite,
++    }
++  );
+ 
+ const baseClass = "confirm-invite-page";
+ 
+-const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
+-  const { invite_token } = params;
++  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
++    "invite",
++    () => inviteAPI.verify(invite_token),
++    {
++      ...DEFAULT_USE_QUERY_OPTIONS,
++      select: (resp: IValidateInviteResponse) => resp.invite,
++    }
++  );
+   const { currentUser } = useContext(AppContext);
+   const { renderFlash } = useContext(NotificationContext);
+ 
++  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
++    "invite",
++    () => inviteAPI.verify(invite_token),
++    {
++      ...DEFAULT_USE_QUERY_OPTIONS,
++      select: (resp: IValidateInviteResponse) => resp.invite,
++    }
++  );
++
+   const {
+     data: validInvite,
+     error: validateInviteError,
+     isLoading: isVerifyingInvite,
+-  } = useInviteVerification(invite_token);
++  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
++    "invite",
++    () => inviteAPI.verify(invite_token),
++    {
++      ...DEFAULT_USE_QUERY_OPTIONS,
++      select: (resp: IValidateInviteResponse) => resp.invite,
++    }
++  );
+ 
+   const onSubmit = useCallback(
+     async (formData: IConfirmInviteFormData) => {
+       const dataForAPI: ICreateUserWithInvitationFormData = {
+         email: validInvite?.email || "",
++    // return for router typechecking
+         name: formData.name,
+         password: formData.password,
+         password_confirmation: formData.password_confirmation,
+@@ -43,22 +92,31 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
+ 
+       try {
+         await usersAPI.create(dataForAPI);
+-        renderFlash(
++        router.push(paths.LOGIN);
++    // error is how API communicates an invalid invite
+           "success",
+-          "Account created successfully. Please sign in."
++  if (currentUser) {
++    router.push(paths.DASHBOARD);
++    // return for router typechecking
++    return <></>;
++  }
++
++    // valid - return form pre-filled with data from api response
+         );
+-        router.push(paths.LOGIN);
+       } catch (error) {
+         const reason = getErrorReason(error);
+         console.error(reason);
++    // error is how API communicates an invalid invite
+         renderFlash("error", reason);
+       }
+     },
++            // at this point we will have a valid invite per error check above
+     [invite_token, renderFlash, router, validInvite?.email]
+   );
+ 
+   if (currentUser) {
+-    router.push(paths.DASHBOARD);
++    // valid - return form pre-filled with data from api response
++    // return for router typechecking
+     return <></>;
+   }
+ 
+@@ -66,23 +124,21 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
+     if (isVerifyingInvite) {
+       return <Spinner />;
+     }
++            // at this point we will have a valid invite per error check above
+ 
++    // error is how API communicates an invalid invite
+     if (validateInviteError) {
+       return (
+         <p className={`${baseClass}__description`}>
+           This invite token is invalid. Please confirm your invite link.
+         </p>
+-      );
+-    }
+-
+-    return (
+-      <>
+         <p className={`${baseClass}__description`}>
+           Before you get started, please take a moment to complete the following
+           information.
+         </p>
+         <ConfirmInviteForm
+           defaultFormData={{
++            // at this point we will have a valid invite per error check above
+             name: validInvite?.name,
+           }}
+           handleSubmit={onSubmit}
+diff --git a/frontend/pages/hosts/helpers.ts b/frontend/pages/hosts/helpers.ts
+index b06aa8853b..f7d930ded5 100644
+--- a/frontend/pages/hosts/helpers.ts
++++ b/frontend/pages/hosts/helpers.ts
+@@ -1,15 +1,27 @@
+ import { DEFAULT_EMPTY_CELL_VALUE } from "utilities/constants";
++import { isPendingEnrollment } from "utilities/hostUtils";
+ 
++/**
++ * 获取主机状态提示文本
++ * @param status - 主机状态
++ * @returns 对应的提示文本
++ */
+ export const getHostStatusTooltipText = (status: string): string => {
+   if (status === "online") {
+     return "Online hosts will respond to a live report.";
+   }
+-  if (status === DEFAULT_EMPTY_CELL_VALUE) {
++  if (isPendingEnrollment(status)) {
+     return "Device is pending enrollment in Apple Business and status is not yet available.";
+   }
+   return "Offline hosts won't respond to a live report because they may be shut down, asleep, or not connected to the internet.";
+ };
+ 
++/**
++ * 获取主机状态
++ * @param status - 原始主机状态
++ * @param mdmEnrollmentStatus - MDM 注册状态
++ * @returns 处理后的主机状态
++ */
+ export const getHostStatus = (
+   status: string,
+   mdmEnrollmentStatus?: string
+diff --git a/invite_verification_refactor.patch b/invite_verification_refactor.patch
+deleted file mode 100644
+index 8345ed82c9..0000000000
+--- a/invite_verification_refactor.patch
++++ /dev/null
+@@ -1,205 +0,0 @@
+-diff --git a/frontend/hooks/useInviteVerification.ts b/frontend/hooks/useInviteVerification.ts
+-new file mode 100644
+-index 0000000..a1b2c3d
+---- /dev/null
+-+++ b/frontend/hooks/useInviteVerification.ts
+-@@ -0,0 +1,28 @@
+-+import { useQuery } from "react-query";
+-+import { AxiosError } from "axios";
+-+
+-+import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
+-+import { IInvite } from "interfaces/invite";
+-+import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+-+
+-+interface IUseInviteVerificationReturn {
+-+  data: IInvite | undefined;
+-+  isLoading: boolean;
+-+  error: AxiosError | null;
+-+}
+-+
+-+const useInviteVerification = (inviteToken: string): IUseInviteVerificationReturn => {
+-+  const { data, isLoading, error } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
+-+    ["invite", inviteToken],
+-+    () => inviteAPI.verify(inviteToken),
+-+    {
+-+      ...DEFAULT_USE_QUERY_OPTIONS,
+-+      retry: 2,
+-+      select: (resp: IValidateInviteResponse) => resp.invite,
+-+    }
+-+  );
+-+
+-+  return { data, isLoading, error };
+-+};
+-+
+-+export default useInviteVerification;
+-diff --git a/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx b/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx
+-index 1234567..abcdefg 100644
+---- a/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx
+-+++ b/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx
+-@@ -1,33 +1,18 @@
+- import React, { useCallback, useContext } from "react";
+- import { InjectedRouter } from "react-router";
+- import { Params } from "react-router/lib/Router";
+- 
+- import { AppContext } from "context/app";
+- import { NotificationContext } from "context/notification";
+- import { ICreateUserWithInvitationFormData } from "interfaces/user";
+- import paths from "router/paths";
+- import usersAPI from "services/entities/users";
+--import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
+--
+--import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
+--import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
+--import { useQuery } from "react-query";
+--import { IInvite } from "interfaces/invite";
+--
+--import { useQuery } from "react-query";
+--import { IInvite } from "interfaces/invite";
+--
+--import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+--import { IInvite } from "interfaces/invite";
+- import AuthenticationFormWrapper from "components/AuthenticationFormWrapper";
+--import { AxiosError } from "axios";
+--import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+- import Spinner from "components/Spinner";
+--import { useQuery } from "react-query";
+--  router: InjectedRouter; // v3
+--import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+- import ConfirmInviteForm from "components/forms/ConfirmInviteForm";
+- import { IConfirmInviteFormData } from "components/forms/ConfirmInviteForm/ConfirmInviteForm";
+- import { getErrorReason } from "interfaces/errors";
+--import { AxiosError } from "axios";
+--import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+-+import useInviteVerification from "hooks/useInviteVerification";
+- 
+- interface IConfirmInvitePageProps {
+--  router: InjectedRouter; // v3
+-+  router: InjectedRouter;
+-   params: Params;
+- }
+-+
+- const baseClass = "confirm-invite-page";
+- 
+--  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
+--    "invite",
+--    () => inviteAPI.verify(invite_token),
+--    {
+--      ...DEFAULT_USE_QUERY_OPTIONS,
+--      select: (resp: IValidateInviteResponse) => resp.invite,
+--    }
+--  );
+--
+--  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
+--    "invite",
+--    () => inviteAPI.verify(invite_token),
+--    {
+--      ...DEFAULT_USE_QUERY_OPTIONS,
+--      select: (resp: IValidateInviteResponse) => resp.invite,
+--    }
+--  );
+-+const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
+-+  const { invite_token } = params;
+-   const { currentUser } = useContext(AppContext);
+-   const { renderFlash } = useContext(NotificationContext);
+- 
+--  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
+--    "invite",
+--    () => inviteAPI.verify(invite_token),
+--    {
+--      ...DEFAULT_USE_QUERY_OPTIONS,
+--      select: (resp: IValidateInviteResponse) => resp.invite,
+--    }
+--  );
+--
+-   const {
+-     data: validInvite,
+-     error: validateInviteError,
+-     isLoading: isVerifyingInvite,
+--  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
+--    "invite",
+--    () => inviteAPI.verify(invite_token),
+--    {
+--      ...DEFAULT_USE_QUERY_OPTIONS,
+--      select: (resp: IValidateInviteResponse) => resp.invite,
+--    }
+--  );
+-+  } = useInviteVerification(invite_token);
+- 
+-   const onSubmit = useCallback(
+-     async (formData: IConfirmInviteFormData) => {
+-       const dataForAPI: ICreateUserWithInvitationFormData = {
+-         email: validInvite?.email || "",
+--    // return for router typechecking
+-         name: formData.name,
+-         password: formData.password,
+-         password_confirmation: formData.password_confirmation,
+-       };
+- 
+-       try {
+-         await usersAPI.create(dataForAPI);
+-+        renderFlash(
+-+          "success",
+-+          "Account created successfully. Please sign in."
+-+        );
+-         router.push(paths.LOGIN);
+--    // error is how API communicates an invalid invite
+--          "success",
+--  if (currentUser) {
+--    router.push(paths.DASHBOARD);
+--    // return for router typechecking
+--    return <></>;
+--  }
+--
+--    // valid - return form pre-filled with data from api response
+--        );
+-       } catch (error) {
+-         const reason = getErrorReason(error);
+-         console.error(reason);
+--    // error is how API communicates an invalid invite
+-         renderFlash("error", reason);
+-       }
+-     },
+--            // at this point we will have a valid invite per error check above
+-     [invite_token, renderFlash, router, validInvite?.email]
+-   );
+- 
+-   if (currentUser) {
+--    // valid - return form pre-filled with data from api response
+--    // return for router typechecking
+-     router.push(paths.DASHBOARD);
+-     return <></>;
+-   }
+- 
+-   const renderContent = () => {
+-     if (isVerifyingInvite) {
+-       return <Spinner />;
+-     }
+--            // at this point we will have a valid invite per error check above
+- 
+--    // error is how API communicates an invalid invite
+-     if (validateInviteError) {
+-       return (
+-         <p className={`${baseClass}__description`}>
+-           This invite token is invalid. Please confirm your invite link.
+-         </p>
+-+      );
+-+    }
+-+
+-+    return (
+-+      <>
+-         <p className={`${baseClass}__description`}>
+-           Before you get started, please take a moment to complete the following
+-           information.
+-         </p>
+-         <ConfirmInviteForm
+-           defaultFormData={{
+--            // at this point we will have a valid invite per error check above
+-             name: validInvite?.name,
+-           }}
+-           handleSubmit={onSubmit}
+-         />
+--      </>
+-+      </>
+-     );
+-   };
+- 
