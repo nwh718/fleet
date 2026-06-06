@@ -1,0 +1,48 @@
+--- ee/server/service/in_house_apps.go
++++ ee/server/service/in_house_apps.go
+@@ -326,6 +326,38 @@
+ 	return meta, nil
+ }
+ 
++// VerifyInstallToken checks if the provided in-house app install token is valid
++// and matches the given device UDID.
++func (svc *Service) VerifyInstallToken(ctx context.Context, token string, deviceUDID string) (bool, error) {
++	if len(token) != inHouseAppInstallTokenLength {
++		return false, fleet.NewPermissionError("invalid token")
++	}
++
++	meta, err := svc.ds.GetInHouseAppInstallTokenMetadata(ctx, token)
++	if err != nil {
++		if fleet.IsNotFound(err) {
++			svc.logger.WarnContext(ctx, "in-house app install token not found or expired",
++				"device_udid", deviceUDID)
++			return false, fleet.NewPermissionError("invalid token")
++		}
++		return false, ctxerr.Wrap(ctx, err, "lookup in-house app install token")
++	}
++
++	host, err := svc.ds.HostLite(ctx, meta.HostID)
++	if err != nil {
++		if fleet.IsNotFound(err) {
++			svc.logger.WarnContext(ctx, "host not found for install token",
++				"host_id", meta.HostID,
++				"device_udid", deviceUDID)
++			return false, fleet.NewPermissionError("invalid token")
++		}
++		return false, ctxerr.Wrap(ctx, err, "lookup host for install token")
++	}
++
++	if !strings.EqualFold(host.UUID, deviceUDID) {
++		svc.logger.WarnContext(ctx, "in-house app install token device mismatch",
++			"token_host_uuid", host.UUID,
++			"request_device_udid", deviceUDID,
++			"host_id", meta.HostID)
++		return false, fleet.NewPermissionError("invalid token")
++	}
++
++	return true, nil
++}
++
+ // inHouseTeamIDPtr maps stored team_id (0 == no team) back to *uint.
+ func inHouseTeamIDPtr(teamID uint) *uint {
+ 	if teamID == 0 {
