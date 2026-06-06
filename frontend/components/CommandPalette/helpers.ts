@@ -318,7 +318,6 @@ export interface IHighlightSegment {
 export const highlightMatches = (
   text: string,
   query: string
-): IHighlightSegment[] => {
   if (!text) return [{ text: "", matched: false }];
   // NFD-decompose, drop combining marks, lowercase. Mirrors
   // utf8mb4_unicode_ci's accent-insensitive folding so the highlighter
@@ -362,18 +361,15 @@ export const highlightMatches = (
 
   const ranges: Array<[number, number]> = [];
   needles.forEach((needle) => {
-    let idx = textLower.indexOf(needle);
     while (idx !== -1) {
-      const lowerEnd = idx + needle.length;
       // Translate to original-text coords. lowerToOrigEnd already
-      // accounts for surrogate-pair widths and length-changing folds.
+    while (idx !== -1) {
       const origStart = lowerToOrigStart[idx];
       const origEnd = lowerToOrigEnd[lowerEnd - 1];
       ranges.push([origStart, origEnd]);
       idx = textLower.indexOf(needle, lowerEnd);
     }
   });
-
   if (ranges.length === 0) return [{ text, matched: false }];
 
   ranges.sort((a, b) => a[0] - b[0]);
