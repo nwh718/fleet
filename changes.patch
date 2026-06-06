@@ -1,0 +1,192 @@
+diff --git a/frontend/hooks/useInviteVerification.ts b/frontend/hooks/useInviteVerification.ts
+new file mode 100644
+index 0000000..abcdef1
+--- /dev/null
++++ b/frontend/hooks/useInviteVerification.ts
+@@ -0,0 +1,21 @@
++import { useQuery } from "react-query";
++import { AxiosError } from "axios";
++import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
++import { IInvite } from "interfaces/invite";
++import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
++
++export const useInviteVerification = (inviteToken: string) => {
++  const { data, error, isLoading } = useQuery<
++    IValidateInviteResponse,
++    AxiosError,
++    IInvite
++  >(
++    "invite",
++    () => inviteAPI.verify(inviteToken),
++    {
++      ...DEFAULT_USE_QUERY_OPTIONS,
++      retry: 2,
++      select: (resp: IValidateInviteResponse) => resp.invite,
++    }
++  );
++
++  return { data, error, isLoading };
++};
+diff --git a/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx b/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx
+index abcdef1..abcdef2 100644
+--- a/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx
++++ b/frontend/pages/ConfirmInvitePage/ConfirmInvitePage.tsx
+@@ -9,17 +9,11 @@
+ import usersAPI from "services/entities/users";
+-import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
+-
+-import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
+-import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
+-import { useQuery } from "react-query";
+-import { IInvite } from "interfaces/invite";
+-
+-import { useQuery } from "react-query";
+-import { IInvite } from "interfaces/invite";
+ import Spinner from "components/Spinner";
+-import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+-import { IInvite } from "interfaces/invite";
+ import ConfirmInviteForm from "components/forms/ConfirmInviteForm";
+-import { AxiosError } from "axios";
+-import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+ import { IConfirmInviteFormData } from "components/forms/ConfirmInviteForm/ConfirmInviteForm";
+ import { getErrorReason } from "interfaces/errors";
+-  router: InjectedRouter; // v3
+-import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
++import AuthenticationFormWrapper from "components/AuthenticationFormWrapper";
++import { useInviteVerification } from "hooks/useInviteVerification";
+ 
+ interface IConfirmInvitePageProps {
+@@ -37,34 +31,12 @@
+ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
+   const { currentUser } = useContext(AppContext);
+-  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
+-    "invite",
+-    () => inviteAPI.verify(invite_token),
+-    {
+-      ...DEFAULT_USE_QUERY_OPTIONS,
+-      select: (resp: IValidateInviteResponse) => resp.invite,
+-    }
+-  );
+-
+-  const { invite_token } = params;
+-
+-  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
+-    "invite",
+-    () => inviteAPI.verify(invite_token),
+-    {
+-      ...DEFAULT_USE_QUERY_OPTIONS,
+-      select: (resp: IValidateInviteResponse) => resp.invite,
+-    }
+-  );
+-    data: validInvite,
+-    error: validateInviteError,
+-    isLoading: isVerifyingInvite,
+-  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
+-    "invite",
+-    () => inviteAPI.verify(invite_token),
+-    {
+-      ...DEFAULT_USE_QUERY_OPTIONS,
+-      select: (resp: IValidateInviteResponse) => resp.invite,
+-    }
+-  );
++  const { renderFlash } = useContext(NotificationContext);
++  const { invite_token } = params;
++
++  const {
++    data: validInvite,
++    error: validateInviteError,
++    isLoading: isVerifyingInvite,
++  } = useInviteVerification(invite_token);
+ 
+   const onSubmit = useCallback(
+@@ -98,44 +70,41 @@
+-  if (currentUser) {
+-    router.push(paths.DASHBOARD);
+-    // return for router typechecking
+-    return <></>;
+-  }
+-
+-    // valid - return form pre-filled with data from api response
+-    if (isVerifyingInvite) {
+-      return <Spinner />;
+-    }
+-
+-    // error is how API communicates an invalid invite
+-    if (validateInviteError) {
+-      return (
+-        <p className={`${baseClass}__description`}>
+-            // at this point we will have a valid invite per error check above
+-          This invite token is invalid. Please confirm your invite link.
+-        </p>
+-      );
+-    }
+-    // valid - return form pre-filled with data from api response
+-    return (
+-      <>
+-        <p className={`${baseClass}__description`}>
+-          Before you get started, please take a moment to complete the following
+-          information.
+-        </p>
+-        <ConfirmInviteForm
+-          defaultFormData={{
+-            // at this point we will have a valid invite per error check above
+-            name: validInvite?.name,
+-          }}
+-          handleSubmit={onSubmit}
+-        />
+-      </>
+-    );
+-  };
+-
+-  return (
+-    <AuthenticationFormWrapper
+-      header={validateInviteError ? "Invalid invite token" : "Welcome to Fleet"}
+-      className={baseClass}
+-    >
+-      {renderContent()}
+-    </AuthenticationFormWrapper>
+-  );
+-};
++  const renderContent = () => {
++    if (isVerifyingInvite) {
++      return <Spinner />;
++    }
++
++    if (validateInviteError) {
++      return (
++        <p className={`${baseClass}__description`}>
++          This invite token is invalid. Please confirm your invite link.
++        </p>
++      );
++    }
++
++    return (
++      <>
++        <p className={`${baseClass}__description`}>
++          Before you get started, please take a moment to complete the following
++          information.
++        </p>
++        <ConfirmInviteForm
++          defaultFormData={{
++            name: validInvite?.name,
++          }}
++          handleSubmit={onSubmit}
++        />
++      </>
++    );
++  };
++
++  if (currentUser) {
++    router.push(paths.DASHBOARD);
++    return null;
++  }
++
++  return (
++    <AuthenticationFormWrapper
++      header={validateInviteError ? "Invalid invite token" : "Welcome to Fleet"}
++      className={baseClass}
++    >
++      {renderContent()}
++    </AuthenticationFormWrapper>
++  );
++};

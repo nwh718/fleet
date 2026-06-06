@@ -7,17 +7,12 @@ import { NotificationContext } from "context/notification";
 import { ICreateUserWithInvitationFormData } from "interfaces/user";
 import paths from "router/paths";
 import usersAPI from "services/entities/users";
-import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
-
 import AuthenticationFormWrapper from "components/AuthenticationFormWrapper";
 import Spinner from "components/Spinner";
-import { useQuery } from "react-query";
-import { IInvite } from "interfaces/invite";
 import ConfirmInviteForm from "components/forms/ConfirmInviteForm";
 import { IConfirmInviteFormData } from "components/forms/ConfirmInviteForm/ConfirmInviteForm";
 import { getErrorReason } from "interfaces/errors";
-import { AxiosError } from "axios";
-import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
+import { useInviteVerification } from "hooks/useInviteVerification";
 
 interface IConfirmInvitePageProps {
   router: InjectedRouter; // v3
@@ -29,21 +24,13 @@ const baseClass = "confirm-invite-page";
 const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
   const { currentUser } = useContext(AppContext);
   const { renderFlash } = useContext(NotificationContext);
-
   const { invite_token } = params;
 
   const {
     data: validInvite,
     error: validateInviteError,
     isLoading: isVerifyingInvite,
-  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
-    "invite",
-    () => inviteAPI.verify(invite_token),
-    {
-      ...DEFAULT_USE_QUERY_OPTIONS,
-      select: (resp: IValidateInviteResponse) => resp.invite,
-    }
-  );
+  } = useInviteVerification(invite_token);
 
   const onSubmit = useCallback(
     async (formData: IConfirmInviteFormData) => {
@@ -62,6 +49,7 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
           "success",
           "Registration successful! For security purposes, please log in."
         );
+        // return for router typechecking
       } catch (error) {
         const reason = getErrorReason(error);
         console.error(reason);
@@ -70,19 +58,13 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
     },
     [invite_token, renderFlash, router, validInvite?.email]
   );
-
-  if (currentUser) {
-    router.push(paths.DASHBOARD);
-    // return for router typechecking
-    return <></>;
-  }
+  // error is how API communicates an invalid invite
 
   const renderContent = () => {
     if (isVerifyingInvite) {
       return <Spinner />;
     }
 
-    // error is how API communicates an invalid invite
     if (validateInviteError) {
       return (
         <p className={`${baseClass}__description`}>
@@ -90,7 +72,7 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
         </p>
       );
     }
-    // valid - return form pre-filled with data from api response
+
     return (
       <>
         <p className={`${baseClass}__description`}>
@@ -99,7 +81,6 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
         </p>
         <ConfirmInviteForm
           defaultFormData={{
-            // at this point we will have a valid invite per error check above
             name: validInvite?.name,
           }}
           handleSubmit={onSubmit}
@@ -107,6 +88,11 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
       </>
     );
   };
+
+  if (currentUser) {
+    router.push(paths.DASHBOARD);
+    return null;
+  }
 
   return (
     <AuthenticationFormWrapper
