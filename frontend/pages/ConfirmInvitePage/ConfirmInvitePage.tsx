@@ -7,17 +7,13 @@ import { NotificationContext } from "context/notification";
 import { ICreateUserWithInvitationFormData } from "interfaces/user";
 import paths from "router/paths";
 import usersAPI from "services/entities/users";
-import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
-
 import AuthenticationFormWrapper from "components/AuthenticationFormWrapper";
 import Spinner from "components/Spinner";
-import { useQuery } from "react-query";
-import { IInvite } from "interfaces/invite";
 import ConfirmInviteForm from "components/forms/ConfirmInviteForm";
+import useInviteVerification from "hooks/useInviteVerification";
 import { IConfirmInviteFormData } from "components/forms/ConfirmInviteForm/ConfirmInviteForm";
 import { getErrorReason } from "interfaces/errors";
 import { AxiosError } from "axios";
-import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
 
 interface IConfirmInvitePageProps {
   router: InjectedRouter; // v3
@@ -36,14 +32,7 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
     data: validInvite,
     error: validateInviteError,
     isLoading: isVerifyingInvite,
-  } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
-    "invite",
-    () => inviteAPI.verify(invite_token),
-    {
-      ...DEFAULT_USE_QUERY_OPTIONS,
-      select: (resp: IValidateInviteResponse) => resp.invite,
-    }
-  );
+  } = useInviteVerification(invite_token);
 
   const onSubmit = useCallback(
     async (formData: IConfirmInviteFormData) => {
