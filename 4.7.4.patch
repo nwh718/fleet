@@ -1,0 +1,168 @@
+diff --git a/frontend/pages/hosts/helpers.ts b/frontend/pages/hosts/helpers.ts
+++index b06aa8853b..7454a56924 100644
+++--- a/frontend/pages/hosts/helpers.ts
++++++ b/frontend/pages/hosts/helpers.ts
+++@@ -1,20 +1,32 @@
+++ import { DEFAULT_EMPTY_CELL_VALUE } from "utilities/constants";
++++import { isPendingEnrollment } from "../../utilities/hostUtils";
+++ 
++++/**
++++ * Returns the tooltip text shown for a host status indicator.
++++ * @param status The host status value displayed in the UI.
++++ */
+++ export const getHostStatusTooltipText = (status: string): string => {
+++   if (status === "online") {
+++     return "Online hosts will respond to a live report.";
+++   }
+++-  if (status === DEFAULT_EMPTY_CELL_VALUE) {
++++
++++  if (isPendingEnrollment(status)) {
+++     return "Device is pending enrollment in Apple Business and status is not yet available.";
+++   }
++++
+++   return "Offline hosts won't respond to a live report because they may be shut down, asleep, or not connected to the internet.";
+++ };
+++ 
++++/**
++++ * Returns the host status shown in the UI, including pending enrollment handling.
++++ * @param status The status reported for the host.
++++ * @param mdmEnrollmentStatus The MDM enrollment status for the host, if available.
++++ */
+++ export const getHostStatus = (
+++   status: string,
+++   mdmEnrollmentStatus?: string
+++ ): string => {
+++-  if (mdmEnrollmentStatus === "Pending") {
++++  if (isPendingEnrollment(mdmEnrollmentStatus)) {
+++     return DEFAULT_EMPTY_CELL_VALUE;
+++   }
+++ 
+++diff --git a/frontend/utilities/hostUtils.ts b/frontend/utilities/hostUtils.ts
+++new file mode 100644
+++index 0000000000..31b1a78057
+++--- /dev/null
++++++ b/frontend/utilities/hostUtils.ts
+++@@ -0,0 +1,9 @@
++++import { DEFAULT_EMPTY_CELL_VALUE } from "utilities/constants";
++++
++++/**
++++ * Returns whether a host should be treated as pending enrollment.
++++ * @param value The status-like value to evaluate.
++++ */
++++export const isPendingEnrollment = (value?: string): boolean => {
++++  return value === DEFAULT_EMPTY_CELL_VALUE || value === "Pending";
++++};
++diff --git a/frontend/pages/hosts/helpers.ts b/frontend/pages/hosts/helpers.ts
++index b06aa8853b..a73d8244ff 100644
++--- a/frontend/pages/hosts/helpers.ts
+++++ b/frontend/pages/hosts/helpers.ts
++@@ -1,20 +1,32 @@
++ import { DEFAULT_EMPTY_CELL_VALUE } from "utilities/constants";
+++import { isPendingEnrollment } from "utilities/hostUtils";
++ 
+++/**
+++ * Returns the tooltip text shown for a host status indicator.
+++ * @param status The host status value displayed in the UI.
+++ */
++ export const getHostStatusTooltipText = (status: string): string => {
++   if (status === "online") {
++     return "Online hosts will respond to a live report.";
++   }
++-  if (status === DEFAULT_EMPTY_CELL_VALUE) {
+++
+++  if (isPendingEnrollment(status)) {
++     return "Device is pending enrollment in Apple Business and status is not yet available.";
++   }
+++
++   return "Offline hosts won't respond to a live report because they may be shut down, asleep, or not connected to the internet.";
++ };
++ 
+++/**
+++ * Returns the host status shown in the UI, including pending enrollment handling.
+++ * @param status The status reported for the host.
+++ * @param mdmEnrollmentStatus The MDM enrollment status for the host, if available.
+++ */
++ export const getHostStatus = (
++   status: string,
++   mdmEnrollmentStatus?: string
++ ): string => {
++-  if (mdmEnrollmentStatus === "Pending") {
+++  if (isPendingEnrollment(mdmEnrollmentStatus)) {
++     return DEFAULT_EMPTY_CELL_VALUE;
++   }
++ 
++diff --git a/frontend/utilities/hostUtils.ts b/frontend/utilities/hostUtils.ts
++new file mode 100644
++index 0000000000..38197fc10f
++--- /dev/null
+++++ b/frontend/utilities/hostUtils.ts
++@@ -0,0 +1,9 @@
+++import { DEFAULT_EMPTY_CELL_VALUE } from "utilities/constants";
+++
+++/**
+++ * Returns whether a host should be treated as pending enrollment.
+++ * @param value The status-like value to evaluate.
+++ */
+++export const isPendingEnrollment = (value?: string): boolean => {
+++    return value === DEFAULT_EMPTY_CELL_VALUE || value === "Pending";
+++};
+diff --git a/frontend/pages/hosts/helpers.ts b/frontend/pages/hosts/helpers.ts
+index b06aa8853b..22acdf202f 100644
+--- a/frontend/pages/hosts/helpers.ts
++++ b/frontend/pages/hosts/helpers.ts
+@@ -1,22 +1,34 @@
+ import { DEFAULT_EMPTY_CELL_VALUE } from "utilities/constants";
++import { isPendingEnrollment } from "utilities/hostUtils";
+ 
++/**
++ * Returns the tooltip text shown for a host status indicator.
++ * @param status The host status value displayed in the UI.
++ */
+ export const getHostStatusTooltipText = (status: string): string => {
+   if (status === "online") {
+     return "Online hosts will respond to a live report.";
+   }
+-  if (status === DEFAULT_EMPTY_CELL_VALUE) {
++
++  if (isPendingEnrollment(status)) {
+     return "Device is pending enrollment in Apple Business and status is not yet available.";
+   }
++
+   return "Offline hosts won't respond to a live report because they may be shut down, asleep, or not connected to the internet.";
+ };
+ 
++/**
++ * Returns the host status shown in the UI, including pending enrollment handling.
++ * @param status The status reported for the host.
++ * @param mdmEnrollmentStatus The MDM enrollment status for the host, if available.
++ */
+ export const getHostStatus = (
+   status: string,
+   mdmEnrollmentStatus?: string
+ ): string => {
+-  if (mdmEnrollmentStatus === "Pending") {
++  if (isPendingEnrollment(mdmEnrollmentStatus)) {
+     return DEFAULT_EMPTY_CELL_VALUE;
+   }
+ 
+-  return status || DEFAULT_EMPTY_CELL_VALUE;
+-};
++  return status;
++};
+\ No newline at end of file
+diff --git a/frontend/utilities/hostUtils.ts b/frontend/utilities/hostUtils.ts
+new file mode 100644
+index 0000000000..6df4fb010c
+--- /dev/null
++++ b/frontend/utilities/hostUtils.ts
+@@ -0,0 +1,9 @@
++import { DEFAULT_EMPTY_CELL_VALUE } from "utilities/constants";
++
++/**
++ * Returns whether a host should be treated as pending enrollment.
++ * @param value The status-like value to evaluate.
++ */
++export const isPendingEnrollment = (value?: string): boolean => {
++  return value === DEFAULT_EMPTY_CELL_VALUE || value === "Pending";
++};
+\ No newline at end of file
