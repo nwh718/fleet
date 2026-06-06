@@ -3,6 +3,7 @@ import { Command } from "cmdk";
 
 import { ITeamSummary } from "interfaces/team";
 
+import useLazyItems from "./useLazyItems";
 import HighlightedLabel from "./HighlightedLabel";
 
 const baseClass = "command-palette";
@@ -20,9 +21,15 @@ const FleetPicker = ({
   search,
   onSelect,
 }: IFleetPickerProps): JSX.Element => {
+  const {
+    visibleItems: visibleFleets,
+    hasMore,
+    sentinelRef,
+  } = useLazyItems({ items: availableTeams ?? [] });
+
   return (
     <Command.Group className={`${baseClass}__group`}>
-      {availableTeams?.map((fleet) => {
+      {visibleFleets.map((fleet) => {
         const isSelected = fleet.id === currentTeam?.id;
         return (
           <Command.Item
@@ -41,6 +48,15 @@ const FleetPicker = ({
           </Command.Item>
         );
       })}
+      {hasMore && (
+        <span
+          ref={sentinelRef}
+          className={`${baseClass}__list-sentinel`}
+          aria-hidden
+        >
+          {"\u200B"}
+        </span>
+      )}
     </Command.Group>
   );
 };

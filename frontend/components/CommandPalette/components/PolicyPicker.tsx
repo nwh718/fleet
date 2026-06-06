@@ -14,6 +14,7 @@ import PillBadge from "components/PillBadge";
 import { PATCH_TOOLTIP_CONTENT } from "components/SoftwareInstallPolicyBadges/SoftwareInstallPolicyBadges";
 
 import usePickerSearch from "./usePickerSearch";
+import useLazyItems from "./useLazyItems";
 import { RESULT_PREFIXES } from "./constants";
 import getFleetSuffix from "./pickerCopy";
 import HighlightedLabel from "./HighlightedLabel";
@@ -70,6 +71,12 @@ const PolicyPicker = ({
     selectItems: (data) => data?.policies ?? [],
   });
 
+  const {
+    visibleItems: visiblePolicies,
+    hasMore,
+    sentinelRef,
+  } = useLazyItems({ items: policies });
+
   if (isLoading && policies.length === 0) {
     return <div className={`${baseClass}__empty`}>Looking for policies...</div>;
   }
@@ -91,7 +98,7 @@ const PolicyPicker = ({
 
   return (
     <Command.Group className={`${baseClass}__group`}>
-      {policies.map((policy) => {
+      {visiblePolicies.map((policy) => {
         const showCriticalBadge = isPremiumTier && policy.critical;
         const showPatchBadge = policy.type === "patch";
         const showInheritedBadge =
@@ -121,6 +128,15 @@ const PolicyPicker = ({
           </Command.Item>
         );
       })}
+      {hasMore && (
+        <span
+          ref={sentinelRef}
+          className={`${baseClass}__list-sentinel`}
+          aria-hidden
+        >
+          {"\u200B"}
+        </span>
+      )}
     </Command.Group>
   );
 };

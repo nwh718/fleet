@@ -402,6 +402,95 @@ export const highlightMatches = (
   return segments;
 };
 
+export interface IHighlightResult {
+  segments: IHighlightSegment[];
+  hasMore: boolean;
+}
+
+export const highlightMatchesLazy = (
+  text: string,
+  query: string,
+  maxRanges: number = 10
+): IHighlightResult => {
+  if (!text) return { segments: [{ text: "", matched: false }], hasMore: false };
+  const foldChar = (cp: string): string =>
+    cp.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  const fold = (s: string): string => Array.from(s, foldChar).join("");
+  const queryLower = fold(query).trim();
+  if (!queryLower)
+    return { segments: [{ text, matched: false }], hasMore: false };
+
+  const needles = new Set<string>([queryLower]);
+  queryLower.split(/\s+/).forEach((tok) => {
+    if (tok) needles.add(tok);
+  });
+
+  let textLower = "";
+  const lowerToOrigStart: number[] = [];
+  const lowerToOrigEnd: number[] = [];
+  let origIdx = 0;
+  Array.from(text).forEach((cp) => {
+    const folded = foldChar(cp);
+    for (let j = 0; j < folded.length; j += 1) {
+      lowerToOrigStart.push(origIdx);
+      lowerToOrigEnd.push(origIdx + cp.length);
+    }
+    textLower += folded;
+    origIdx += cp.length;
+  });
+  lowerToOrigStart.push(text.length);
+  lowerToOrigEnd.push(text.length);
+
+  const ranges: Array<[number, number]> = [];
+  let rangesCapped = false;
+  for (const needle of needles) {
+    let idx = textLower.indexOf(needle);
+    while (idx !== -1) {
+      const lowerEnd = idx + needle.length;
+      const origStart = lowerToOrigStart[idx];
+      const origEnd = lowerToOrigEnd[lowerEnd - 1];
+      ranges.push([origStart, origEnd]);
+      if (ranges.length >= maxRanges * 2) {
+        rangesCapped = true;
+        break;
+      }
+      idx = textLower.indexOf(needle, lowerEnd);
+    }
+    if (rangesCapped) break;
+  }
+
+  if (ranges.length === 0)
+    return { segments: [{ text, matched: false }], hasMore: false };
+
+  ranges.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [ranges[0]];
+  for (let i = 1; i < ranges.length; i += 1) {
+    const last = merged[merged.length - 1];
+    if (ranges[i][0] <= last[1]) {
+      last[1] = Math.max(last[1], ranges[i][1]);
+    } else {
+      merged.push(ranges[i]);
+    }
+  }
+
+  const hasMore = merged.length > maxRanges || rangesCapped;
+  const limitedMerged = merged.slice(0, maxRanges);
+
+  const segments: IHighlightSegment[] = [];
+  let cursor = 0;
+  limitedMerged.forEach(([start, end]) => {
+    if (start > cursor) {
+      segments.push({ text: text.slice(cursor, start), matched: false });
+    }
+    segments.push({ text: text.slice(start, end), matched: true });
+    cursor = end;
+  });
+  if (cursor < text.length) {
+    segments.push({ text: text.slice(cursor), matched: false });
+  }
+  return { segments, hasMore };
+};
+
 /**
  * Top-level orchestrator. Each group's items live in its own file under
  * ./groups/, and all share the values derived once via deriveContext.

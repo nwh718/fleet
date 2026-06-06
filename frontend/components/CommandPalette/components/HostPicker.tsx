@@ -4,6 +4,7 @@ import { Command } from "cmdk";
 import hostsAPI, { ILoadHostsResponse } from "services/entities/hosts";
 
 import usePickerSearch from "./usePickerSearch";
+import useLazyItems from "./useLazyItems";
 import { RESULT_PREFIXES } from "./constants";
 import HighlightedLabel from "./HighlightedLabel";
 
@@ -46,6 +47,12 @@ const HostPicker = ({
     selectItems: (data) => data?.hosts ?? [],
   });
 
+  const {
+    visibleItems: visibleHosts,
+    hasMore,
+    sentinelRef,
+  } = useLazyItems({ items: hosts });
+
   if (isLoading && hosts.length === 0) {
     return <div className={`${baseClass}__empty`}>Looking for hosts...</div>;
   }
@@ -62,7 +69,7 @@ const HostPicker = ({
 
   return (
     <Command.Group className={`${baseClass}__group`}>
-      {hosts.map((host) => {
+      {visibleHosts.map((host) => {
         const label = host.display_name || host.hostname || `Host ${host.id}`;
         const dotClass = `${baseClass}__host-status-dot ${baseClass}__host-status-dot--${host.status}`;
         return (
@@ -78,8 +85,6 @@ const HostPicker = ({
                 aria-label={`status: ${host.status}`}
               />
               <span className={`${baseClass}__item-label`}>
-                {/* debouncedQuery, not live search — stays in sync
-                    with the debounced row list. */}
                 <HighlightedLabel text={label} query={debouncedQuery} />
               </span>
             </span>
@@ -91,6 +96,15 @@ const HostPicker = ({
           </Command.Item>
         );
       })}
+      {hasMore && (
+        <span
+          ref={sentinelRef}
+          className={`${baseClass}__list-sentinel`}
+          aria-hidden
+        >
+          {"\u200B"}
+        </span>
+      )}
     </Command.Group>
   );
 };

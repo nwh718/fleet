@@ -19,6 +19,7 @@ import { InstallIconWithTooltip } from "components/TableContainer/DataTable/Soft
 
 import getFleetSuffix from "./pickerCopy";
 import usePickerSearch from "./usePickerSearch";
+import useLazyItems from "./useLazyItems";
 import { RESULT_PREFIXES } from "./constants";
 import HighlightedLabel from "./HighlightedLabel";
 
@@ -97,6 +98,12 @@ const SoftwarePicker = ({
     selectItems: (data) => data?.software_titles ?? [],
   });
 
+  const {
+    visibleItems: visibleTitles,
+    hasMore,
+    sentinelRef,
+  } = useLazyItems({ items: titles });
+
   if (isLoading && titles.length === 0) {
     return <div className={`${baseClass}__empty`}>Looking for software...</div>;
   }
@@ -117,7 +124,7 @@ const SoftwarePicker = ({
 
   return (
     <Command.Group className={`${baseClass}__group`}>
-      {titles.map((title) => {
+      {visibleTitles.map((title) => {
         const label = title.display_name || title.name;
         const typeLabel = formatSoftwareType(title);
         const installerProps = getInstallerProps(title);
@@ -140,6 +147,15 @@ const SoftwarePicker = ({
           </Command.Item>
         );
       })}
+      {hasMore && (
+        <span
+          ref={sentinelRef}
+          className={`${baseClass}__list-sentinel`}
+          aria-hidden
+        >
+          {"\u200B"}
+        </span>
+      )}
     </Command.Group>
   );
 };

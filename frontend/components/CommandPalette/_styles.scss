@@ -302,6 +302,14 @@
     font-weight: $bold;
   }
 
+  &__highlight-sentinel,
+  &__list-sentinel {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    overflow: hidden;
+  }
+
   &__item-more {
     flex-shrink: 0;
     display: flex;

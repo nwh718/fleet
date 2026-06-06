@@ -9,6 +9,7 @@ import PillBadge from "components/PillBadge";
 import TooltipWrapper from "components/TooltipWrapper";
 
 import usePickerSearch from "./usePickerSearch";
+import useLazyItems from "./useLazyItems";
 import { RESULT_PREFIXES } from "./constants";
 import getFleetSuffix from "./pickerCopy";
 import HighlightedLabel from "./HighlightedLabel";
@@ -61,6 +62,12 @@ const ReportPicker = ({
     selectItems: (data) => data?.queries ?? [],
   });
 
+  const {
+    visibleItems: visibleReports,
+    hasMore,
+    sentinelRef,
+  } = useLazyItems({ items: reports });
+
   if (isLoading && reports.length === 0) {
     return <div className={`${baseClass}__empty`}>Looking for reports...</div>;
   }
@@ -82,7 +89,7 @@ const ReportPicker = ({
 
   return (
     <Command.Group className={`${baseClass}__group`}>
-      {reports.map((report) => {
+      {visibleReports.map((report) => {
         const showObserverIcon = !isViewerObserver && report.observer_can_run;
         const showInheritedBadge =
           isViewingSpecificTeam && report.team_id !== currentTeam?.id;
@@ -118,6 +125,15 @@ const ReportPicker = ({
           </Command.Item>
         );
       })}
+      {hasMore && (
+        <span
+          ref={sentinelRef}
+          className={`${baseClass}__list-sentinel`}
+          aria-hidden
+        >
+          {"\u200B"}
+        </span>
+      )}
     </Command.Group>
   );
 };

@@ -1,0 +1,536 @@
+diff --git a/frontend/components/CommandPalette/helpers.ts b/frontend/components/CommandPalette/helpers.ts
+index 0000000000..1111111111 100644
+--- a/frontend/components/CommandPalette/helpers.ts
++++ b/frontend/components/CommandPalette/helpers.ts
+@@ -397,6 +397,95 @@ export const highlightMatches = (
+   return segments;
+ };
+ 
++export interface IHighlightResult {
++  segments: IHighlightSegment[];
++  hasMore: boolean;
++}
++
++export const highlightMatchesLazy = (
++  text: string,
++  query: string,
++  maxRanges: number = 10
++): IHighlightResult => {
++  if (!text) return { segments: [{ text: "", matched: false }], hasMore: false };
++  const foldChar = (cp: string): string =>
++    cp.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
++  const fold = (s: string): string => Array.from(s, foldChar).join("");
++  const queryLower = fold(query).trim();
++  if (!queryLower)
++    return { segments: [{ text, matched: false }], hasMore: false };
++
++  const needles = new Set<string>([queryLower]);
++  queryLower.split(/\s+/).forEach((tok) => {
++    if (tok) needles.add(tok);
++  });
++
++  let textLower = "";
++  const lowerToOrigStart: number[] = [];
++  const lowerToOrigEnd: number[] = [];
++  let origIdx = 0;
++  Array.from(text).forEach((cp) => {
++    const folded = foldChar(cp);
++    for (let j = 0; j < folded.length; j += 1) {
++      lowerToOrigStart.push(origIdx);
++      lowerToOrigEnd.push(origIdx + cp.length);
++    }
++    textLower += folded;
++    origIdx += cp.length;
++  });
++  lowerToOrigStart.push(text.length);
++  lowerToOrigEnd.push(text.length);
++
++  const ranges: Array<[number, number]> = [];
++  let rangesCapped = false;
++  for (const needle of needles) {
++    let idx = textLower.indexOf(needle);
++    while (idx !== -1) {
++      const lowerEnd = idx + needle.length;
++      const origStart = lowerToOrigStart[idx];
++      const origEnd = lowerToOrigEnd[lowerEnd - 1];
++      ranges.push([origStart, origEnd]);
++      if (ranges.length >= maxRanges * 2) {
++        rangesCapped = true;
++        break;
++      }
++      idx = textLower.indexOf(needle, lowerEnd);
++    }
++    if (rangesCapped) break;
++  }
++
++  if (ranges.length === 0)
++    return { segments: [{ text, matched: false }], hasMore: false };
++
++  ranges.sort((a, b) => a[0] - b[0]);
++  const merged: Array<[number, number]> = [ranges[0]];
++  for (let i = 1; i < ranges.length; i += 1) {
++    const last = merged[merged.length - 1];
++    if (ranges[i][0] <= last[1]) {
++      last[1] = Math.max(last[1], ranges[i][1]);
++    } else {
++      merged.push(ranges[i]);
++    }
++  }
++
++  const hasMore = merged.length > maxRanges || rangesCapped;
++  const limitedMerged = merged.slice(0, maxRanges);
++
++  const segments: IHighlightSegment[] = [];
++  let cursor = 0;
++  limitedMerged.forEach(([start, end]) => {
++    if (start > cursor) {
++      segments.push({ text: text.slice(cursor, start), matched: false });
++    }
++    segments.push({ text: text.slice(start, end), matched: true });
++    cursor = end;
++  });
++  if (cursor < text.length) {
++    segments.push({ text: text.slice(cursor), matched: false });
++  }
++  return { segments, hasMore };
++};
++
+ /**
+  * Top-level orchestrator. Each group's items live in its own file under
+  * ./groups/, and all share the values derived once via deriveContext.
+diff --git a/frontend/components/CommandPalette/components/HighlightedLabel.tsx b/frontend/components/CommandPalette/components/HighlightedLabel.tsx
+index 0000000000..2222222222 100644
+--- a/frontend/components/CommandPalette/components/HighlightedLabel.tsx
++++ b/frontend/components/CommandPalette/components/HighlightedLabel.tsx
+@@ -1,4 +1,4 @@
+-import React from "react";
++import React, { useState, useEffect, useRef, useCallback } from "react";
+ 
+-import { highlightMatches } from "../helpers";
++import { highlightMatchesLazy } from "../helpers";
+ 
+ const baseClass = "command-palette";
++const BATCH_SIZE = 10;
++const DEBOUNCE_MS = 200;
+ 
+ interface IHighlightedLabelProps {
+   text: string;
+@@ -13,16 +19,62 @@ interface IHighlightedLabelProps {
+  * Fragment — callers control the surrounding element/class.
++ *
++ * Segments are batched in groups of BATCH_SIZE to keep the initial render
++ * fast. Remaining segments are loaded lazily via a debounce timer (input
++ * pause) and an IntersectionObserver (scroll-into-view).
+  */
+ const HighlightedLabel = ({
+   text,
+   query,
+ }: IHighlightedLabelProps): JSX.Element => {
+-  return (
+-    <>
+-      {highlightMatches(text, query).map((seg, i) =>
+-        seg.matched ? (
+-          // Index keys are safe — segments are derived synchronously from
+-          // the same text + query each render, so order is stable.
+-          // eslint-disable-next-line react/no-array-index-key
+-          <mark key={i} className={`${baseClass}__item-label-match`}>
+-            {seg.text}
+-          </mark>
+-        ) : (
+-          // eslint-disable-next-line react/no-array-index-key
+-          <React.Fragment key={i}>{seg.text}</React.Fragment>
+-        )
+-      )}
+-    </>
+-  );
++  const [visibleCount, setVisibleCount] = useState(BATCH_SIZE);
++  const sentinelRef = useRef<HTMLSpanElement>(null);
++  const { segments, hasMore: hasMoreRanges } = highlightMatchesLazy(
++    text,
++    query,
++    BATCH_SIZE
++  );
++  const hasMore = segments.length > visibleCount || hasMoreRanges;
++
++  useEffect(() => {
++    setVisibleCount(BATCH_SIZE);
++  }, [text, query]);
++
++  const loadMore = useCallback(() => {
++    setVisibleCount((prev) => Math.min(prev + BATCH_SIZE, segments.length));
++  }, [segments.length]);
++
++  useEffect(() => {
++    if (!hasMore) return;
++    const timer = setTimeout(loadMore, DEBOUNCE_MS);
++    return () => clearTimeout(timer);
++  }, [hasMore, loadMore]);
++
++  useEffect(() => {
++    const sentinel = sentinelRef.current;
++    if (!hasMore || !sentinel) return;
++    const observer = new IntersectionObserver(
++      (entries) => {
++        if (entries[0]?.isIntersecting) {
++          loadMore();
++        }
++      },
++      { rootMargin: "50px" }
++    );
++    observer.observe(sentinel);
++    return () => observer.disconnect();
++  }, [hasMore, loadMore]);
++
++  const visible = segments.slice(0, visibleCount);
++
++  return (
++    <>
++      {visible.map((seg, i) =>
++        seg.matched ? (
++          <mark key={i} className={`${baseClass}__item-label-match`}>
++            {seg.text}
++          </mark>
++        ) : (
++          <React.Fragment key={i}>{seg.text}</React.Fragment>
++        )
++      )}
++      {hasMore && (
++        <span ref={sentinelRef} className={`${baseClass}__highlight-sentinel`}>
++          {"\u200B"}
++        </span>
++      )}
++    </>
++  );
+ };
+ 
+diff --git a/frontend/components/CommandPalette/components/useLazyItems.ts b/frontend/components/CommandPalette/components/useLazyItems.ts
+new file
+index 0000000000..3333333333
+--- /dev/null
++++ b/frontend/components/CommandPalette/components/useLazyItems.ts
+@@ -0,0 +1,69 @@
++import { useState, useEffect, useRef, useCallback } from "react";
++
++const INITIAL_COUNT = 10;
++const BATCH_SIZE = 10;
++const DEBOUNCE_MS = 300;
++
++interface IUseLazyItemsOptions<T> {
++  items: T[];
++  initialCount?: number;
++  batchSize?: number;
++  debounceMs?: number;
++}
++
++interface IUseLazyItemsResult<T> {
++  visibleItems: T[];
++  hasMore: boolean;
++  sentinelRef: React.RefObject<HTMLSpanElement>;
++  loadMore: () => void;
++}
++
++const useLazyItems = <T>({
++  items,
++  initialCount = INITIAL_COUNT,
++  batchSize = BATCH_SIZE,
++  debounceMs = DEBOUNCE_MS,
++}: IUseLazyItemsOptions<T>): IUseLazyItemsResult<T> => {
++  const [visibleCount, setVisibleCount] = useState(initialCount);
++  const sentinelRef = useRef<HTMLSpanElement>(null);
++
++  useEffect(() => {
++    setVisibleCount(initialCount);
++  }, [items, initialCount]);
++
++  const hasMore = items.length > visibleCount;
++
++  const loadMore = useCallback(() => {
++    setVisibleCount((prev) => Math.min(prev + batchSize, items.length));
++  }, [batchSize, items.length]);
++
++  useEffect(() => {
++    if (!hasMore) return;
++    const timer = setTimeout(loadMore, debounceMs);
++    return () => clearTimeout(timer);
++  }, [hasMore, loadMore, debounceMs]);
++
++  useEffect(() => {
++    const sentinel = sentinelRef.current;
++    if (!hasMore || !sentinel) return;
++    const observer = new IntersectionObserver(
++      (entries) => {
++        if (entries[0]?.isIntersecting) {
++          loadMore();
++        }
++      },
++      { rootMargin: "100px" }
++    );
++    observer.observe(sentinel);
++    return () => observer.disconnect();
++  }, [hasMore, loadMore]);
++
++  return {
++    visibleItems: items.slice(0, visibleCount),
++    hasMore,
++    sentinelRef,
++    loadMore,
++  };
++};
++
++export default useLazyItems;
+diff --git a/frontend/components/CommandPalette/components/HostPicker.tsx b/frontend/components/CommandPalette/components/HostPicker.tsx
+index 0000000000..4444444444 100644
+--- a/frontend/components/CommandPalette/components/HostPicker.tsx
++++ b/frontend/components/CommandPalette/components/HostPicker.tsx
+@@ -5,6 +5,7 @@ import hostsAPI, { ILoadHostsResponse } from "services/entities/hosts";
+ 
+ import usePickerSearch from "./usePickerSearch";
++import useLazyItems from "./useLazyItems";
+ import { RESULT_PREFIXES } from "./constants";
+ import HighlightedLabel from "./HighlightedLabel";
+ 
+@@ -48,6 +49,12 @@ const HostPicker = ({
+   });
+ 
++  const {
++    visibleItems: visibleHosts,
++    hasMore,
++    sentinelRef,
++  } = useLazyItems({ items: hosts });
++
+   if (isLoading && hosts.length === 0) {
+     return <div className={`${baseClass}__empty`}>Looking for hosts...</div>;
+   }
+@@ -67,7 +74,7 @@ const HostPicker = ({
+   return (
+     <Command.Group className={`${baseClass}__group`}>
+-      {hosts.map((host) => {
++      {visibleHosts.map((host) => {
+         const label = host.display_name || host.hostname || `Host ${host.id}`;
+         const dotClass = `${baseClass}__host-status-dot ${baseClass}__host-status-dot--${host.status}`;
+         return (
+@@ -83,9 +90,6 @@ const HostPicker = ({
+                 />
+                 <span className={`${baseClass}__item-label`}>
+-                  {/* debouncedQuery, not live search — stays in sync
+-                      with the debounced row list. */}
+                   <HighlightedLabel text={label} query={debouncedQuery} />
+                 </span>
+               </span>
+@@ -99,6 +103,15 @@ const HostPicker = ({
+           </Command.Item>
+         );
+       })}
++      {hasMore && (
++        <span
++          ref={sentinelRef}
++          className={`${baseClass}__list-sentinel`}
++          aria-hidden
++        >
++          {"\u200B"}
++        </span>
++      )}
+     </Command.Group>
+   );
+ };
+diff --git a/frontend/components/CommandPalette/components/SoftwarePicker.tsx b/frontend/components/CommandPalette/components/SoftwarePicker.tsx
+index 0000000000..5555555555 100644
+--- a/frontend/components/CommandPalette/components/SoftwarePicker.tsx
++++ b/frontend/components/CommandPalette/components/SoftwarePicker.tsx
+@@ -20,6 +20,7 @@ import getFleetSuffix from "./pickerCopy";
+ 
+ import usePickerSearch from "./usePickerSearch";
++import useLazyItems from "./useLazyItems";
+ import { RESULT_PREFIXES } from "./constants";
+ import HighlightedLabel from "./HighlightedLabel";
+ 
+@@ -99,6 +100,12 @@ const SoftwarePicker = ({
+   });
+ 
++  const {
++    visibleItems: visibleTitles,
++    hasMore,
++    sentinelRef,
++  } = useLazyItems({ items: titles });
++
+   if (isLoading && titles.length === 0) {
+     return <div className={`${baseClass}__empty`}>Looking for software...</div>;
+   }
+@@ -121,7 +128,7 @@ const SoftwarePicker = ({
+   return (
+     <Command.Group className={`${baseClass}__group`}>
+-      {titles.map((title) => {
++      {visibleTitles.map((title) => {
+         const label = title.display_name || title.name;
+         const typeLabel = formatSoftwareType(title);
+         const installerProps = getInstallerProps(title);
+@@ -148,6 +155,15 @@ const SoftwarePicker = ({
+           </Command.Item>
+         );
+       })}
++      {hasMore && (
++        <span
++          ref={sentinelRef}
++          className={`${baseClass}__list-sentinel`}
++          aria-hidden
++        >
++          {"\u200B"}
++        </span>
++      )}
+     </Command.Group>
+   );
+ };
+diff --git a/frontend/components/CommandPalette/components/PolicyPicker.tsx b/frontend/components/CommandPalette/components/PolicyPicker.tsx
+index 0000000000..6666666666 100644
+--- a/frontend/components/CommandPalette/components/PolicyPicker.tsx
++++ b/frontend/components/CommandPalette/components/PolicyPicker.tsx
+@@ -15,6 +15,7 @@ import { IQuery } from "interfaces/query";
+ 
+ import usePickerSearch from "./usePickerSearch";
++import useLazyItems from "./useLazyItems";
+ import { RESULT_PREFIXES } from "./constants";
+ import getFleetSuffix from "./pickerCopy";
+ import HighlightedLabel from "./HighlightedLabel";
+@@ -72,6 +73,12 @@ const PolicyPicker = ({
+   });
+ 
++  const {
++    visibleItems: visiblePolicies,
++    hasMore,
++    sentinelRef,
++  } = useLazyItems({ items: policies });
++
+   if (isLoading && policies.length === 0) {
+     return <div className={`${baseClass}__empty`}>Looking for policies...</div>;
+   }
+@@ -95,7 +102,7 @@ const PolicyPicker = ({
+   return (
+     <Command.Group className={`${baseClass}__group`}>
+-      {policies.map((policy) => {
++      {visiblePolicies.map((policy) => {
+         const showCriticalBadge = isPremiumTier && policy.critical;
+         const showPatchBadge = policy.type === "patch";
+         const showInheritedBadge =
+@@ -129,6 +136,15 @@ const PolicyPicker = ({
+           </Command.Item>
+         );
+       })}
++      {hasMore && (
++        <span
++          ref={sentinelRef}
++          className={`${baseClass}__list-sentinel`}
++          aria-hidden
++        >
++          {"\u200B"}
++        </span>
++      )}
+     </Command.Group>
+   );
+ };
+diff --git a/frontend/components/CommandPalette/components/ReportPicker.tsx b/frontend/components/CommandPalette/components/ReportPicker.tsx
+index 0000000000..7777777777 100644
+--- a/frontend/components/CommandPalette/components/ReportPicker.tsx
++++ b/frontend/components/CommandPalette/components/ReportPicker.tsx
+@@ -10,6 +10,7 @@ import { IQuery } from "interfaces/query";
+ 
+ import usePickerSearch from "./usePickerSearch";
++import useLazyItems from "./useLazyItems";
+ import { RESULT_PREFIXES } from "./constants";
+ import getFleetSuffix from "./pickerCopy";
+ import HighlightedLabel from "./HighlightedLabel";
+@@ -63,6 +64,12 @@ const ReportPicker = ({
+   });
+ 
++  const {
++    visibleItems: visibleReports,
++    hasMore,
++    sentinelRef,
++  } = useLazyItems({ items: reports });
++
+   if (isLoading && reports.length === 0) {
+     return <div className={`${baseClass}__empty`}>Looking for reports...</div>;
+   }
+@@ -86,7 +93,7 @@ const ReportPicker = ({
+   return (
+     <Command.Group className={`${baseClass}__group`}>
+-      {reports.map((report) => {
++      {visibleReports.map((report) => {
+         const showObserverIcon = !isViewerObserver && report.observer_can_run;
+         const showInheritedBadge =
+           isViewingSpecificTeam && report.team_id !== currentTeam?.id;
+@@ -126,6 +133,15 @@ const ReportPicker = ({
+           </Command.Item>
+         );
+       })}
++      {hasMore && (
++        <span
++          ref={sentinelRef}
++          className={`${baseClass}__list-sentinel`}
++          aria-hidden
++        >
++          {"\u200B"}
++        </span>
++      )}
+     </Command.Group>
+   );
+ };
+diff --git a/frontend/components/CommandPalette/components/FleetPicker.tsx b/frontend/components/CommandPalette/components/FleetPicker.tsx
+index 0000000000..8888888888 100644
+--- a/frontend/components/CommandPalette/components/FleetPicker.tsx
++++ b/frontend/components/CommandPalette/components/FleetPicker.tsx
+@@ -4,6 +4,7 @@ import { Command } from "cmdk";
+ import { ITeamSummary } from "interfaces/team";
+ 
++import useLazyItems from "./useLazyItems";
+ import HighlightedLabel from "./HighlightedLabel";
+ 
+ const baseClass = "command-palette";
+@@ -21,7 +22,13 @@ const FleetPicker = ({
+   currentTeam,
+   search,
+   onSelect,
+ }: IFleetPickerProps): JSX.Element => {
++  const {
++    visibleItems: visibleFleets,
++    hasMore,
++    sentinelRef,
++  } = useLazyItems({ items: availableTeams ?? [] });
++
+   return (
+     <Command.Group className={`${baseClass}__group`}>
+-      {availableTeams?.map((fleet) => {
++      {visibleFleets.map((fleet) => {
+         const isSelected = fleet.id === currentTeam?.id;
+         return (
+@@ -42,4 +49,13 @@ const FleetPicker = ({
+         );
+       })}
++      {hasMore && (
++        <span
++          ref={sentinelRef}
++          className={`${baseClass}__list-sentinel`}
++          aria-hidden
++        >
++          {"\u200B"}
++        </span>
++      )}
+     </Command.Group>
+   );
+ };
+diff --git a/frontend/components/CommandPalette/_styles.scss b/frontend/components/CommandPalette/_styles.scss
+index 0000000000..9999999999 100644
+--- a/frontend/components/CommandPalette/_styles.scss
++++ b/frontend/components/CommandPalette/_styles.scss
+@@ -303,6 +303,14 @@
+     }
+ 
++    &__highlight-sentinel,
++    &__list-sentinel {
++      display: inline-block;
++      width: 0;
++      height: 0;
++      overflow: hidden;
++    }
++
+     &__item-more {
+       flex-shrink: 0;
