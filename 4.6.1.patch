@@ -1,0 +1,280 @@
+diff --git a/frontend/components/CommandPalette/_styles.scss b/frontend/components/CommandPalette/_styles.scss
+index 6198054ab0..073f2db17d 100644
+--- a/frontend/components/CommandPalette/_styles.scss
++++ b/frontend/components/CommandPalette/_styles.scss
+@@ -302,14 +302,6 @@
+     font-weight: $bold;
+   }
+ 
+-  &__item-more {
+-    flex-shrink: 0;
+-    display: flex;
+-    align-items: center;
+-    justify-content: center;
+-    // Spacing from the adjacent label comes from __item-left's gap.
+-    padding: $pad-xsmall $pad-small;
+-    background: none;
+     border: none;
+     border-radius: $border-radius;
+     cursor: pointer;
+diff --git a/frontend/components/CommandPalette/components/FleetPicker.tsx b/frontend/components/CommandPalette/components/FleetPicker.tsx
+index 772605bb5b..4df4306ca7 100644
+--- a/frontend/components/CommandPalette/components/FleetPicker.tsx
++++ b/frontend/components/CommandPalette/components/FleetPicker.tsx
+@@ -3,7 +3,6 @@ import { Command } from "cmdk";
+ 
+ import { ITeamSummary } from "interfaces/team";
+ 
+-import HighlightedLabel from "./HighlightedLabel";
+ 
+ const baseClass = "command-palette";
+ 
+@@ -21,15 +20,9 @@ const FleetPicker = ({
+   onSelect,
+ }: IFleetPickerProps): JSX.Element => {
+   return (
+-    <Command.Group className={`${baseClass}__group`}>
+-      {availableTeams?.map((fleet) => {
+-        const isSelected = fleet.id === currentTeam?.id;
+-        return (
+-          <Command.Item
+-            key={`fleet-${fleet.id}`}
+             value={fleet.name}
+             onSelect={() => onSelect(fleet.id)}
+-            className={`${baseClass}__item`}
++      {availableTeams?.map((fleet) => {
+           >
+             <span
+               className={`${baseClass}__item-label${
+diff --git a/frontend/components/CommandPalette/components/HighlightedLabel.tsx b/frontend/components/CommandPalette/components/HighlightedLabel.tsx
+index 8faf0eb822..070769ac39 100644
+--- a/frontend/components/CommandPalette/components/HighlightedLabel.tsx
++++ b/frontend/components/CommandPalette/components/HighlightedLabel.tsx
+@@ -3,10 +3,6 @@ import React from "react";
+ import { highlightMatches } from "../helpers";
+ 
+ const baseClass = "command-palette";
+-
+-interface IHighlightedLabelProps {
+-  text: string;
+-  query: string;
+ }
+ 
+ /**
+@@ -15,10 +11,6 @@ interface IHighlightedLabelProps {
+  * Fragment — callers control the surrounding element/class.
+  */
+ const HighlightedLabel = ({
+-  text,
+-  query,
+-}: IHighlightedLabelProps): JSX.Element => {
+-  return (
+     <>
+       {highlightMatches(text, query).map((seg, i) =>
+         seg.matched ? (
+@@ -38,3 +30,8 @@ const HighlightedLabel = ({
+ };
+ 
+ export default HighlightedLabel;
++          // Index keys are safe — segments are derived synchronously from
++          // the same text + query each render, so order is stable.
++          // eslint-disable-next-line react/no-array-index-key
++          // eslint-disable-next-line react/no-array-index-key
++
+diff --git a/frontend/components/CommandPalette/components/HostPicker.tsx b/frontend/components/CommandPalette/components/HostPicker.tsx
+index a09617be00..87e55393c2 100644
+--- a/frontend/components/CommandPalette/components/HostPicker.tsx
++++ b/frontend/components/CommandPalette/components/HostPicker.tsx
+@@ -4,7 +4,6 @@ import { Command } from "cmdk";
+ import hostsAPI, { ILoadHostsResponse } from "services/entities/hosts";
+ 
+ import usePickerSearch from "./usePickerSearch";
+-import { RESULT_PREFIXES } from "./constants";
+ import HighlightedLabel from "./HighlightedLabel";
+ 
+ const baseClass = "command-palette";
+@@ -47,12 +46,6 @@ const HostPicker = ({
+   });
+ 
+   if (isLoading && hosts.length === 0) {
+-    return <div className={`${baseClass}__empty`}>Looking for hosts...</div>;
+-  }
+-
+-  if (hosts.length === 0) {
+-    return (
+-      <div className={`${baseClass}__empty`}>
+         {debouncedQuery
+           ? `No hosts match "${debouncedQuery}".`
+           : "No hosts found."}
+@@ -69,7 +62,7 @@ const HostPicker = ({
+           <Command.Item
+             key={`host-${host.id}`}
+             value={`${RESULT_PREFIXES.host}${host.id}`}
+-            onSelect={() => onSelect(host.id)}
++      {hosts.map((host) => {
+             className={`${baseClass}__item`}
+           >
+             <span className={`${baseClass}__host-name`}>
+@@ -85,6 +78,8 @@ const HostPicker = ({
+             </span>
+             {showTeamColumn && (
+               <span className={`${baseClass}__host-team`}>
++                {/* debouncedQuery, not live search — stays in sync
++                    with the debounced row list. */}
+                 {host.team_name || "Unassigned"}
+               </span>
+             )}
+diff --git a/frontend/components/CommandPalette/components/ReportPicker.tsx b/frontend/components/CommandPalette/components/ReportPicker.tsx
+index 70c992b1b9..82fce4c444 100644
+--- a/frontend/components/CommandPalette/components/ReportPicker.tsx
++++ b/frontend/components/CommandPalette/components/ReportPicker.tsx
+@@ -9,7 +9,6 @@ import PillBadge from "components/PillBadge";
+ import TooltipWrapper from "components/TooltipWrapper";
+ 
+ import usePickerSearch from "./usePickerSearch";
+-import { RESULT_PREFIXES } from "./constants";
+ import getFleetSuffix from "./pickerCopy";
+ import HighlightedLabel from "./HighlightedLabel";
+ 
+@@ -62,12 +61,6 @@ const ReportPicker = ({
+   });
+ 
+   if (isLoading && reports.length === 0) {
+-    return <div className={`${baseClass}__empty`}>Looking for reports...</div>;
+-  }
+-
+-  if (reports.length === 0) {
+-    return (
+-      <div className={`${baseClass}__empty`}>
+         {debouncedQuery
+           ? `No reports match "${debouncedQuery}"${fleetSuffix}.`
+           : `No reports found${fleetSuffix}.`}
+@@ -89,7 +82,7 @@ const ReportPicker = ({
+ 
+         return (
+           <Command.Item
+-            key={`report-${report.id}`}
++      {reports.map((report) => {
+             value={`${RESULT_PREFIXES.report}${report.id}`}
+             onSelect={() => onSelect(report.id)}
+             className={`${baseClass}__item`}
+diff --git a/frontend/components/CommandPalette/components/SoftwarePicker.tsx b/frontend/components/CommandPalette/components/SoftwarePicker.tsx
+index a68dca6339..ea655e6088 100644
+--- a/frontend/components/CommandPalette/components/SoftwarePicker.tsx
++++ b/frontend/components/CommandPalette/components/SoftwarePicker.tsx
+@@ -19,7 +19,6 @@ import { InstallIconWithTooltip } from "components/TableContainer/DataTable/Soft
+ 
+ import getFleetSuffix from "./pickerCopy";
+ import usePickerSearch from "./usePickerSearch";
+-import { RESULT_PREFIXES } from "./constants";
+ import HighlightedLabel from "./HighlightedLabel";
+ 
+ const baseClass = "command-palette";
+@@ -98,12 +97,6 @@ const SoftwarePicker = ({
+   });
+ 
+   if (isLoading && titles.length === 0) {
+-    return <div className={`${baseClass}__empty`}>Looking for software...</div>;
+-  }
+-
+-  if (titles.length === 0) {
+-    let emptyMessage: string;
+-    if (libraryOnly) {
+       emptyMessage = debouncedQuery
+         ? `No library software matches "${debouncedQuery}" in ${libraryOwner}.`
+         : `No software in ${libraryOwner}.`;
+@@ -124,7 +117,7 @@ const SoftwarePicker = ({
+         return (
+           <Command.Item
+             key={`software-${title.id}`}
+-            value={`${RESULT_PREFIXES.software}${title.id}`}
++      {titles.map((title) => {
+             onSelect={() => onSelect(title.id)}
+             className={`${baseClass}__item`}
+           >
+diff --git a/frontend/components/CommandPalette/helpers.ts b/frontend/components/CommandPalette/helpers.ts
+index f3fcdd2204..7b013c4687 100644
+--- a/frontend/components/CommandPalette/helpers.ts
++++ b/frontend/components/CommandPalette/helpers.ts
+@@ -402,81 +402,3 @@ export const highlightMatches = (
+   return segments;
+ };
+ 
+-/**
+- * Top-level orchestrator. Each group's items live in its own file under
+- * ./groups/, and all share the values derived once via deriveContext.
+- * Cross-group order in the returned array doesn't affect rendering —
+- * CommandPalette.tsx groups by `group` field and renders in GROUPS order.
+- */
+-export const buildPaletteItems = (
+-  ctx: ICommandPaletteContext
+-): ICommandItem[] => {
+-  const derived = deriveContext(ctx);
+-  return [
+-    ...buildPagesItems(ctx, derived),
+-    ...buildControlsItems(ctx, derived),
+-    ...buildSoftwareItems(ctx, derived),
+-    ...buildSettingsItems(ctx),
+-    ...buildCommandsItems(ctx, derived),
+-    ...buildMdmItems(ctx, derived),
+-    ...buildAutomationsItems(ctx, derived),
+-  ];
+-};
+-
+-// Pages that require a specific fleet — they can't render "All fleets" or
+-// (with some overlap) "Unassigned". When switching to either of those from
+-// one of these pages, fall back to Hosts which supports both.
+-const TEAM_REQUIRED_PREFIXES = [
+-  paths.CONTROLS,
+-  paths.SOFTWARE_LIBRARY,
+-  paths.NEW_REPORT,
+-];
+-
+-/**
+- * Build the next URL for a fleet switch initiated from the command palette.
+- *
+- * This bypasses useTeamIdParam.handleTeamChange (which owns per-page
+- * `overrideParamsOnTeamChange` config), so it reproduces handleTeamChange's
+- * generic strip rules (page, legacy team_id) plus the fleet-scoped Hosts
+- * filter keys (script_batch_execution_*, software_status on switch to All).
+- */
+-export const buildFleetSwitchUrl = ({
+-  pathname,
+-  currentSearch,
+-  fleetId,
+-}: {
+-  pathname: string;
+-  currentSearch: string;
+-  fleetId: number;
+-}): string => {
+-  const isAll = fleetId === APP_CONTEXT_ALL_TEAMS_ID;
+-  const isUnassignedTarget = fleetId === 0;
+-  const isOnTeamRequiredPage = TEAM_REQUIRED_PREFIXES.some((p) =>
+-    pathname.startsWith(p)
+-  );
+-
+-  if ((isAll || isUnassignedTarget) && isOnTeamRequiredPage) {
+-    // For Unassigned, keep fleet_id=0 on the fallback URL.
+-    // useTeamIdParam coerces a missing param back to All fleets (-1),
+-    // which would silently undo the setCurrentTeam({id:0}) caller.
+-    return isUnassignedTarget
+-      ? `${paths.MANAGE_HOSTS}?fleet_id=0`
+-      : paths.MANAGE_HOSTS;
+-  }
+-
+-  const params = new URLSearchParams(currentSearch);
+-  if (isAll) {
+-    params.delete("fleet_id");
+-  } else {
+-    params.set("fleet_id", String(fleetId));
+-  }
+-  params.delete("page");
+-  params.delete("team_id");
+-  params.delete("script_batch_execution_id");
+-  params.delete("script_batch_execution_status");
+-  if (isAll) {
+-    params.delete("software_status");
+-  }
+-  const qs = params.toString();
+-  return qs ? `${pathname}?${qs}` : pathname;
+-};

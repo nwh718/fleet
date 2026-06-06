@@ -302,14 +302,6 @@
     font-weight: $bold;
   }
 
-  &__item-more {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    // Spacing from the adjacent label comes from __item-left's gap.
-    padding: $pad-xsmall $pad-small;
-    background: none;
     border: none;
     border-radius: $border-radius;
     cursor: pointer;

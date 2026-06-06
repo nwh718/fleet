@@ -3,7 +3,6 @@ import { Command } from "cmdk";
 
 import { ITeamSummary } from "interfaces/team";
 
-import HighlightedLabel from "./HighlightedLabel";
 
 const baseClass = "command-palette";
 
@@ -21,15 +20,9 @@ const FleetPicker = ({
   onSelect,
 }: IFleetPickerProps): JSX.Element => {
   return (
-    <Command.Group className={`${baseClass}__group`}>
-      {availableTeams?.map((fleet) => {
-        const isSelected = fleet.id === currentTeam?.id;
-        return (
-          <Command.Item
-            key={`fleet-${fleet.id}`}
             value={fleet.name}
             onSelect={() => onSelect(fleet.id)}
-            className={`${baseClass}__item`}
+      {availableTeams?.map((fleet) => {
           >
             <span
               className={`${baseClass}__item-label${

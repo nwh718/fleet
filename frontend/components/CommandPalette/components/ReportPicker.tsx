@@ -9,7 +9,6 @@ import PillBadge from "components/PillBadge";
 import TooltipWrapper from "components/TooltipWrapper";
 
 import usePickerSearch from "./usePickerSearch";
-import { RESULT_PREFIXES } from "./constants";
 import getFleetSuffix from "./pickerCopy";
 import HighlightedLabel from "./HighlightedLabel";
 
@@ -62,12 +61,6 @@ const ReportPicker = ({
   });
 
   if (isLoading && reports.length === 0) {
-    return <div className={`${baseClass}__empty`}>Looking for reports...</div>;
-  }
-
-  if (reports.length === 0) {
-    return (
-      <div className={`${baseClass}__empty`}>
         {debouncedQuery
           ? `No reports match "${debouncedQuery}"${fleetSuffix}.`
           : `No reports found${fleetSuffix}.`}
@@ -89,7 +82,7 @@ const ReportPicker = ({
 
         return (
           <Command.Item
-            key={`report-${report.id}`}
+      {reports.map((report) => {
             value={`${RESULT_PREFIXES.report}${report.id}`}
             onSelect={() => onSelect(report.id)}
             className={`${baseClass}__item`}

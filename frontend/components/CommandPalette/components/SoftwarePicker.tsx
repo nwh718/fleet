@@ -19,7 +19,6 @@ import { InstallIconWithTooltip } from "components/TableContainer/DataTable/Soft
 
 import getFleetSuffix from "./pickerCopy";
 import usePickerSearch from "./usePickerSearch";
-import { RESULT_PREFIXES } from "./constants";
 import HighlightedLabel from "./HighlightedLabel";
 
 const baseClass = "command-palette";
@@ -98,12 +97,6 @@ const SoftwarePicker = ({
   });
 
   if (isLoading && titles.length === 0) {
-    return <div className={`${baseClass}__empty`}>Looking for software...</div>;
-  }
-
-  if (titles.length === 0) {
-    let emptyMessage: string;
-    if (libraryOnly) {
       emptyMessage = debouncedQuery
         ? `No library software matches "${debouncedQuery}" in ${libraryOwner}.`
         : `No software in ${libraryOwner}.`;
@@ -124,7 +117,7 @@ const SoftwarePicker = ({
         return (
           <Command.Item
             key={`software-${title.id}`}
-            value={`${RESULT_PREFIXES.software}${title.id}`}
+      {titles.map((title) => {
             onSelect={() => onSelect(title.id)}
             className={`${baseClass}__item`}
           >

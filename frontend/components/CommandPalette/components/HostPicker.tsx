@@ -4,7 +4,6 @@ import { Command } from "cmdk";
 import hostsAPI, { ILoadHostsResponse } from "services/entities/hosts";
 
 import usePickerSearch from "./usePickerSearch";
-import { RESULT_PREFIXES } from "./constants";
 import HighlightedLabel from "./HighlightedLabel";
 
 const baseClass = "command-palette";
@@ -47,12 +46,6 @@ const HostPicker = ({
   });
 
   if (isLoading && hosts.length === 0) {
-    return <div className={`${baseClass}__empty`}>Looking for hosts...</div>;
-  }
-
-  if (hosts.length === 0) {
-    return (
-      <div className={`${baseClass}__empty`}>
         {debouncedQuery
           ? `No hosts match "${debouncedQuery}".`
           : "No hosts found."}
@@ -69,7 +62,7 @@ const HostPicker = ({
           <Command.Item
             key={`host-${host.id}`}
             value={`${RESULT_PREFIXES.host}${host.id}`}
-            onSelect={() => onSelect(host.id)}
+      {hosts.map((host) => {
             className={`${baseClass}__item`}
           >
             <span className={`${baseClass}__host-name`}>
@@ -85,6 +78,8 @@ const HostPicker = ({
             </span>
             {showTeamColumn && (
               <span className={`${baseClass}__host-team`}>
+                {/* debouncedQuery, not live search — stays in sync
+                    with the debounced row list. */}
                 {host.team_name || "Unassigned"}
               </span>
             )}

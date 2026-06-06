@@ -3,10 +3,6 @@ import React from "react";
 import { highlightMatches } from "../helpers";
 
 const baseClass = "command-palette";
-
-interface IHighlightedLabelProps {
-  text: string;
-  query: string;
 }
 
 /**
@@ -15,10 +11,6 @@ interface IHighlightedLabelProps {
  * Fragment — callers control the surrounding element/class.
  */
 const HighlightedLabel = ({
-  text,
-  query,
-}: IHighlightedLabelProps): JSX.Element => {
-  return (
     <>
       {highlightMatches(text, query).map((seg, i) =>
         seg.matched ? (
@@ -38,3 +30,8 @@ const HighlightedLabel = ({
 };
 
 export default HighlightedLabel;
+          // Index keys are safe — segments are derived synchronously from
+          // the same text + query each render, so order is stable.
+          // eslint-disable-next-line react/no-array-index-key
+          // eslint-disable-next-line react/no-array-index-key
+
