@@ -1,0 +1,124 @@
+diff --git a/frontend/pages/SoftwarePage/SoftwareAddPage/SoftwareFleetMaintained/FleetMaintainedAppsTable/FleetMaintainedAppsTable.tests.tsx b/frontend/pages/SoftwarePage/SoftwareAddPage/SoftwareFleetMaintained/FleetMaintainedAppsTable/FleetMaintainedAppsTable.tests.tsx
+new file mode 100644
+--- /dev/null
++++ b/frontend/pages/SoftwarePage/SoftwareAddPage/SoftwareFleetMaintained/FleetMaintainedAppsTable/FleetMaintainedAppsTable.tests.tsx
+@@ -0,0 +1,119 @@
++import React from "react";
++import { screen } from "@testing-library/react";
++import userEvent from "@testing-library/user-event";
++
++import { createMockFleetMaintainedApp } from "__mocks__/softwareMock";
++import PATHS from "router/paths";
++import { ISoftwareFleetMaintainedAppsResponse } from "services/entities/software";
++import { createCustomRenderer, createMockRouter } from "test/test-utils";
++import { getPathWithQueryParams } from "utilities/url";
++
++import FleetMaintainedAppsTable from "./FleetMaintainedAppsTable";
++
++const createMockResponse = (
++  fleetMaintainedApps: ReturnType<typeof createMockFleetMaintainedApp>[]
++): ISoftwareFleetMaintainedAppsResponse => ({
++  fleet_maintained_apps: fleetMaintainedApps,
++  count: fleetMaintainedApps.length,
++  apps_updated_at: null,
++  meta: {
++    has_next_results: false,
++    has_previous_results: false,
++  },
++});
++
++describe("FleetMaintainedAppsTable", () => {
++  const defaultProps = {
++    teamId: 7,
++    isLoading: false,
++    query: "",
++    perPage: 999,
++    orderDirection: "asc" as const,
++    orderKey: "name",
++    currentPage: 0,
++  };
++
++  it("renders PowerShell as a Windows-only app and routes to the Windows details page on add", async () => {
++    const user = userEvent.setup();
++    const router = createMockRouter();
++    const render = createCustomRenderer();
++
++    render(
++      <FleetMaintainedAppsTable
++        {...defaultProps}
++        router={router}
++        data={createMockResponse([
++          createMockFleetMaintainedApp({
++            id: 42,
++            name: "PowerShell",
++            platform: "windows",
++          }),
++        ])}
++      />
++    );
++
++    expect(screen.getByText("PowerShell")).toBeInTheDocument();
++    expect(screen.getByText("macOS")).toBeInTheDocument();
++    expect(screen.getByText("Windows")).toBeInTheDocument();
++    expect(screen.getByText(/---/i)).toBeInTheDocument();
++
++    const addButton = screen.getByRole("button", { name: "Add" });
++    await user.click(addButton);
++
++    expect(router.push).toHaveBeenCalledWith(
++      getPathWithQueryParams(PATHS.SOFTWARE_FLEET_MAINTAINED_DETAILS(42), {
++        fleet_id: 7,
++      })
++    );
++  });
++
++  it("shows a macOS add button only when the app is only available for macOS", () => {
++    const router = createMockRouter();
++    const render = createCustomRenderer();
++
++    render(
++      <FleetMaintainedAppsTable
++        {...defaultProps}
++        router={router}
++        data={createMockResponse([
++          createMockFleetMaintainedApp({
++            id: 11,
++            name: "Test App",
++            platform: "darwin",
++          }),
++        ])}
++      />
++    );
++
++    expect(screen.getByText("Test App")).toBeInTheDocument();
++    expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
++    expect(screen.getByText(/---/i)).toBeInTheDocument();
++  });
++
++  it("renders a success icon instead of an add button when PowerShell is already added for Windows", () => {
++    const router = createMockRouter();
++    const render = createCustomRenderer();
++
++    render(
++      <FleetMaintainedAppsTable
++        {...defaultProps}
++        router={router}
++        data={createMockResponse([
++          createMockFleetMaintainedApp({
++            id: 42,
++            name: "PowerShell",
++            platform: "windows",
++            software_title_id: 9001,
++          }),
++        ])}
++      />
++    );
++
++    expect(screen.getByText("PowerShell")).toBeInTheDocument();
++    expect(
++      screen.queryByRole("button", { name: "Add" })
++    ).not.toBeInTheDocument();
++    expect(screen.getByTestId("success-icon")).toBeInTheDocument();
++    expect(screen.getByText(/---/i)).toBeInTheDocument();
++  });
++});

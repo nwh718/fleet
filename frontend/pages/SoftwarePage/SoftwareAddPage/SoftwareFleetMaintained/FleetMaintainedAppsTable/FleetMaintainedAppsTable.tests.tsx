@@ -1,187 +1,119 @@
 import React from "react";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import { createMockFleetMaintainedApp } from "__mocks__/softwareMock";
+import PATHS from "router/paths";
+import { ISoftwareFleetMaintainedAppsResponse } from "services/entities/software";
 import { createCustomRenderer, createMockRouter } from "test/test-utils";
-import createMockUser from "__mocks__/userMock";
-import {
-  createMockFleetMaintainedApp,
-} from "__mocks__/softwareMock";
-import { noop } from "lodash";
+import { getPathWithQueryParams } from "utilities/url";
 
 import FleetMaintainedAppsTable from "./FleetMaintainedAppsTable";
 
-const mockRouter = createMockRouter();
+const createMockResponse = (
+    fleetMaintainedApps: ReturnType<typeof createMockFleetMaintainedApp>[]
+): ISoftwareFleetMaintainedAppsResponse => ({
+    fleet_maintained_apps: fleetMaintainedApps,
+    count: fleetMaintainedApps.length,
+    apps_updated_at: null,
+    meta: {
+        has_next_results: false,
+        has_previous_results: false,
+    },
+});
 
 describe("FleetMaintainedAppsTable", () => {
-  const mockFmaData = {
-    fleet_maintained_apps: [
-      createMockFleetMaintainedApp({ name: "Test App", platform: "darwin", id: 1 }),
-      createMockFleetMaintainedApp({ name: "Test App", platform: "windows", id: 2 }),
-      createMockFleetMaintainedApp({ 
-        name: "Added App", 
-        platform: "windows", 
-        id: 3,
-        software_title_id: 100 // Already added
-      }),
-    ],
-    count: 3,
-    apps_updated_at: "2024-01-01T00:00:00Z",
-    meta: {
-      has_next_results: false,
-      has_previous_results: false,
-    },
-  };
+    const defaultProps = {
+        teamId: 7,
+        isLoading: false,
+        query: "",
+        perPage: 999,
+        orderDirection: "asc" as const,
+        orderKey: "name",
+        currentPage: 0,
+    };
 
-  it("renders macOS column with Add button for available apps", async () => {
-    const render = createCustomRenderer({
-      context: {
-        app: {
-          isGlobalAdmin: true,
-          currentUser: createMockUser(),
-        },
-      },
+    it("renders PowerShell as a Windows-only app and routes to the Windows details page on add", async () => {
+        const user = userEvent.setup();
+        const router = createMockRouter();
+        const render = createCustomRenderer();
+
+        render(
+            <FleetMaintainedAppsTable
+                {...defaultProps}
+                router={router}
+                data={createMockResponse([
+                    createMockFleetMaintainedApp({
+                        id: 42,
+                        name: "PowerShell",
+                        platform: "windows",
+                    }),
+                ])}
+            />
+        );
+
+        expect(screen.getByText("PowerShell")).toBeInTheDocument();
+        expect(screen.getByText("macOS")).toBeInTheDocument();
+        expect(screen.getByText("Windows")).toBeInTheDocument();
+        expect(screen.getByText(/---/i)).toBeInTheDocument();
+
+        const addButton = screen.getByRole("button", { name: "Add" });
+        await user.click(addButton);
+
+        expect(router.push).toHaveBeenCalledWith(
+            getPathWithQueryParams(PATHS.SOFTWARE_FLEET_MAINTAINED_DETAILS(42), {
+                fleet_id: 7,
+            })
+        );
     });
 
-    render(
-      <FleetMaintainedAppsTable
-        teamId={1}
-        isLoading={false}
-        query=""
-        perPage={20}
-        orderDirection="asc"
-        orderKey="name"
-        currentPage={0}
-        router={mockRouter}
-        data={mockFmaData}
-      />
-    );
+    it("shows a macOS add button only when the app is only available for macOS", () => {
+        const router = createMockRouter();
+        const render = createCustomRenderer();
 
-    expect(screen.getByText("macOS")).toBeInTheDocument();
-    
-    // Check for Add buttons
-    const addButtons = screen.getAllByText("Add");
-    expect(addButtons.length).toBeGreaterThan(0);
-  });
+        render(
+            <FleetMaintainedAppsTable
+                {...defaultProps}
+                router={router}
+                data={createMockResponse([
+                    createMockFleetMaintainedApp({
+                        id: 11,
+                        name: "Test App",
+                        platform: "darwin",
+                    }),
+                ])}
+            />
+        );
 
-  it("renders Windows column with Add button for available apps", async () => {
-    const render = createCustomRenderer({
-      context: {
-        app: {
-          isGlobalAdmin: true,
-          currentUser: createMockUser(),
-        },
-      },
+        expect(screen.getByText("Test App")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Add" })).toBeInTheDocument();
+        expect(screen.getByText(/---/i)).toBeInTheDocument();
     });
 
-    render(
-      <FleetMaintainedAppsTable
-        teamId={1}
-        isLoading={false}
-        query=""
-        perPage={20}
-        orderDirection="asc"
-        orderKey="name"
-        currentPage={0}
-        router={mockRouter}
-        data={mockFmaData}
-      />
-    );
+    it("renders a success icon instead of an add button when PowerShell is already added for Windows", () => {
+        const router = createMockRouter();
+        const render = createCustomRenderer();
 
-    expect(screen.getByText("Windows")).toBeInTheDocument();
-    
-    // Check for Add buttons for Windows platform
-    const addButtons = screen.getAllByText("Add");
-    expect(addButtons.length).toBeGreaterThan(0);
-  });
+        render(
+            <FleetMaintainedAppsTable
+                {...defaultProps}
+                router={router}
+                data={createMockResponse([
+                    createMockFleetMaintainedApp({
+                        id: 42,
+                        name: "PowerShell",
+                        platform: "windows",
+                        software_title_id: 9001,
+                    }),
+                ])}
+            />
+        );
 
-  it("renders success checkmark for already added apps", async () => {
-    const render = createCustomRenderer({
-      context: {
-        app: {
-          isGlobalAdmin: true,
-          currentUser: createMockUser(),
-        },
-      },
+        expect(screen.getByText("PowerShell")).toBeInTheDocument();
+        expect(
+            screen.queryByRole("button", { name: "Add" })
+        ).not.toBeInTheDocument();
+        expect(screen.getByTestId("success-icon")).toBeInTheDocument();
+        expect(screen.getByText(/---/i)).toBeInTheDocument();
     });
-
-    render(
-      <FleetMaintainedAppsTable
-        teamId={1}
-        isLoading={false}
-        query=""
-        perPage={20}
-        orderDirection="asc"
-        orderKey="name"
-        currentPage={0}
-        router={mockRouter}
-        data={mockFmaData}
-      />
-    );
-
-    // Check for success icon
-    const successIcons = screen.getAllByTestId("success-icon");
-    expect(successIcons.length).toBeGreaterThan(0);
-  });
-
-  it("navigates to app details when Add button is clicked", async () => {
-    const pushSpy = jest.spyOn(mockRouter, "push");
-
-    const render = createCustomRenderer({
-      context: {
-        app: {
-          isGlobalAdmin: true,
-          currentUser: createMockUser(),
-        },
-      },
-    });
-
-    render(
-      <FleetMaintainedAppsTable
-        teamId={1}
-        isLoading={false}
-        query=""
-        perPage={20}
-        orderDirection="asc"
-        orderKey="name"
-        currentPage={0}
-        router={mockRouter}
-        data={mockFmaData}
-      />
-    );
-
-    // Get first Add button
-    const addButtons = screen.getAllByText("Add");
-    fireEvent.click(addButtons[0]);
-
-    // Verify navigation was called
-    expect(pushSpy).toHaveBeenCalled();
-  });
-
-  it("filters apps by platform when platform filter is applied", async () => {
-    const render = createCustomRenderer({
-      context: {
-        app: {
-          isGlobalAdmin: true,
-          currentUser: createMockUser(),
-        },
-      },
-    });
-
-    const { rerender } = render(
-      <FleetMaintainedAppsTable
-        teamId={1}
-        isLoading={false}
-        query=""
-        perPage={20}
-        orderDirection="asc"
-        orderKey="name"
-        currentPage={0}
-        router={mockRouter}
-        data={mockFmaData}
-        platformParam="windows"
-      />
-    );
-
-    // Test app should be visible for Windows filter
-    expect(screen.getByText("Test App")).toBeInTheDocument();
-  });
 });
