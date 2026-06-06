@@ -1852,12 +1852,12 @@ func (ds *Datastore) GetInHouseAppInstallTokenMetadata(
 	const stmt = `
 SELECT token, software_title_id, team_id, host_id, expires_at
 FROM in_house_app_install_tokens
-WHERE token = ? AND expires_at > ?
+WHERE token = ? AND expires_at > NOW(6)
 `
 	// Read from primary: tokens are minted in the activation tx and may be
 	// looked up before replicas have caught up.
 	var meta fleet.InHouseAppInstallTokenMetadata
-	if err := sqlx.GetContext(ctx, ds.writer(ctx), &meta, stmt, token, time.Now().UTC()); err != nil {
+	if err := sqlx.GetContext(ctx, ds.writer(ctx), &meta, stmt, token); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ctxerr.Wrap(ctx, notFound("InHouseAppInstallToken"))
 		}
@@ -1867,10 +1867,10 @@ WHERE token = ? AND expires_at > ?
 }
 
 func (ds *Datastore) DeleteExpiredInHouseAppInstallTokens(ctx context.Context) (int64, error) {
-	const stmt = `DELETE FROM in_house_app_install_tokens WHERE expires_at < ? LIMIT 1000`
+	const stmt = `DELETE FROM in_house_app_install_tokens WHERE expires_at < NOW(6) LIMIT 1000`
 	var total int64
 	for {
-		res, err := ds.writer(ctx).ExecContext(ctx, stmt, time.Now().UTC())
+		res, err := ds.writer(ctx).ExecContext(ctx, stmt)
 		if err != nil {
 			return total, ctxerr.Wrap(ctx, err, "delete expired in-house app install tokens")
 		}

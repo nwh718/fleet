@@ -1,6 +1,8 @@
+diff --git a/server/datastore/mysql/in_house_apps.go b/server/datastore/mysql/in_house_apps.go
+index fdcee7706c..3a09817fa4 100644
 --- a/server/datastore/mysql/in_house_apps.go
 +++ b/server/datastore/mysql/in_house_apps.go
-@@ -1852,11 +1852,11 @@
+@@ -1852,12 +1852,12 @@ func (ds *Datastore) GetInHouseAppInstallTokenMetadata(
  	const stmt = `
  SELECT token, software_title_id, team_id, host_id, expires_at
  FROM in_house_app_install_tokens
@@ -14,7 +16,9 @@
 +	if err := sqlx.GetContext(ctx, ds.writer(ctx), &meta, stmt, token, time.Now().UTC()); err != nil {
  		if errors.Is(err, sql.ErrNoRows) {
  			return nil, ctxerr.Wrap(ctx, notFound("InHouseAppInstallToken"))
-@@ -1868,9 +1868,9 @@
+ 		}
+@@ -1867,10 +1867,10 @@ WHERE token = ? AND expires_at > NOW(6)
+ }
  
  func (ds *Datastore) DeleteExpiredInHouseAppInstallTokens(ctx context.Context) (int64, error) {
 -	const stmt = `DELETE FROM in_house_app_install_tokens WHERE expires_at < NOW(6) LIMIT 1000`
@@ -25,3 +29,4 @@
 +		res, err := ds.writer(ctx).ExecContext(ctx, stmt, time.Now().UTC())
  		if err != nil {
  			return total, ctxerr.Wrap(ctx, err, "delete expired in-house app install tokens")
+ 		}
