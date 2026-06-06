@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
 	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
@@ -316,6 +317,17 @@ func (svc *Service) validateInHouseAppInstallToken(
 		}
 		return nil, ctxerr.Wrap(ctx, err, "lookup in-house app install token")
 	}
+	
+	// Defensive check: verify token hasn't expired, even though the database
+	// query should already have filtered out expired tokens.
+	if meta.ExpiresAt.Before(time.Now().UTC()) {
+		svc.logger.WarnContext(ctx, "in-house app install token expired",
+			"title_id", urlTitleID,
+			"host_id", meta.HostID,
+			"expires_at", meta.ExpiresAt)
+		return nil, fleet.NewPermissionError("invalid token")
+	}
+	
 	if meta.SoftwareTitleID != urlTitleID {
 		svc.logger.WarnContext(ctx, "in-house app install token title mismatch",
 			"url_title_id", urlTitleID,
