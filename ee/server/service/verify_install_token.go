@@ -1,0 +1,55 @@
+package service
+
+import (
+	"context"
+
+	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
+	"github.com/fleetdm/fleet/v4/server/fleet"
+)
+
+// VerifyInstallToken validates an in-house app install token for iOS device
+// downloads. It checks that the token exists, has not expired, and is
+// associated with the specified device UDID.
+func (svc *Service) VerifyInstallToken(
+	ctx context.Context,
+	token string,
+	deviceUDID string,
+) (valid bool, err error) {
+	// Reject obviously malformed token lengths before hitting the DB;
+	// the column is VARCHAR(36) (UUID), so anything else can't match a row.
+	if len(token) != inHouseAppInstallTokenLength {
+		return false, nil
+	}
+
+	meta, err := svc.ds.GetInHouseAppInstallTokenMetadata(ctx, token)
+	if err != nil {
+		if fleet.IsNotFound(err) {
+			svc.logger.WarnContext(ctx, "in-house app install token not found or expired",
+				"device_udid", deviceUDID)
+			return false, nil
+		}
+		return false, ctxerr.Wrap(ctx, err, "lookup in-house app install token")
+	}
+
+	// Verify the token is associated with the requesting device.
+	host, err := svc.ds.HostByID(ctx, meta.HostID)
+	if err != nil {
+		if fleet.IsNotFound(err) {
+			svc.logger.WarnContext(ctx, "in-house app install token host not found",
+				"host_id", meta.HostID,
+				"device_udid", deviceUDID)
+			return false, nil
+		}
+		return false, ctxerr.Wrap(ctx, err, "lookup host for install token")
+	}
+
+	if host.UUID != deviceUDID {
+		svc.logger.WarnContext(ctx, "in-house app install token device mismatch",
+			"expected_udid", deviceUDID,
+			"token_host_udid", host.UUID,
+			"host_id", meta.HostID)
+		return false, nil
+	}
+
+	return true, nil
+}
