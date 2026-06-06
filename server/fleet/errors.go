@@ -568,37 +568,6 @@ func (e ConflictError) IsClientError() bool {
 // Errorer is an alias for platform_http.Errorer.
 type Errorer = platform_http.Errorer
 
-// InHouseAppTokenExpiredError 用于表示内部应用安装 token 已过期，
-// 建议客户端稍后重试
-type InHouseAppTokenExpiredError struct {
-	retryAfter int
-
-	ErrorWithUUID
-}
-
-// NewInHouseAppTokenExpiredError 创建一个新的内部应用 token 过期错误
-func NewInHouseAppTokenExpiredError(retryAfter int) *InHouseAppTokenExpiredError {
-	return &InHouseAppTokenExpiredError{
-		retryAfter: retryAfter,
-	}
-}
-
-func (e *InHouseAppTokenExpiredError) Error() string {
-	return "token expired, please retry later"
-}
-
-func (e *InHouseAppTokenExpiredError) StatusCode() int {
-	return 429 // Too Many Requests
-}
-
-func (e *InHouseAppTokenExpiredError) RetryAfter() int {
-	return e.retryAfter
-}
-
-func (e *InHouseAppTokenExpiredError) IsClientError() bool {
-	return true
-}
-
 type VPPIconAvailable struct {
 	IconURL string
 }

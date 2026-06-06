@@ -296,8 +296,6 @@ func (svc *Service) GetInHouseAppPackage(ctx context.Context, titleID uint, toke
 
 // validateInHouseAppInstallToken collapses missing, expired, and title-mismatch
 // into the same permission error so callers can't distinguish them.
-// For all invalid token cases, returns an error with Retry-After header to support
-// offline retry scenarios.
 func (svc *Service) validateInHouseAppInstallToken(
 	ctx context.Context,
 	urlTitleID uint,
@@ -306,7 +304,7 @@ func (svc *Service) validateInHouseAppInstallToken(
 	// Reject obviously malformed lengths before hitting the DB; the column is
 	// VARCHAR(36) (UUID), so anything else can't match a row.
 	if len(token) != inHouseAppInstallTokenLength {
-		return nil, fleet.NewInHouseAppTokenExpiredError(3600) // Retry after 1 hour
+		return nil, fleet.NewPermissionError("invalid token")
 	}
 
 	meta, err := svc.ds.GetInHouseAppInstallTokenMetadata(ctx, token)
@@ -314,7 +312,7 @@ func (svc *Service) validateInHouseAppInstallToken(
 		if fleet.IsNotFound(err) {
 			svc.logger.WarnContext(ctx, "in-house app install token not found or expired",
 				"title_id", urlTitleID)
-			return nil, fleet.NewInHouseAppTokenExpiredError(3600) // Retry after 1 hour
+			return nil, fleet.NewPermissionError("invalid token")
 		}
 		return nil, ctxerr.Wrap(ctx, err, "lookup in-house app install token")
 	}
@@ -323,7 +321,7 @@ func (svc *Service) validateInHouseAppInstallToken(
 			"url_title_id", urlTitleID,
 			"token_title_id", meta.SoftwareTitleID,
 			"host_id", meta.HostID)
-		return nil, fleet.NewInHouseAppTokenExpiredError(3600) // Retry after 1 hour
+		return nil, fleet.NewPermissionError("invalid token")
 	}
 	return meta, nil
 }
