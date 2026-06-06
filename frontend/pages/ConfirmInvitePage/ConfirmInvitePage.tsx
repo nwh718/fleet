@@ -12,19 +12,19 @@ import Spinner from "components/Spinner";
 import ConfirmInviteForm from "components/forms/ConfirmInviteForm";
 import { IConfirmInviteFormData } from "components/forms/ConfirmInviteForm/ConfirmInviteForm";
 import { getErrorReason } from "interfaces/errors";
-import { useInviteVerification } from "hooks/useInviteVerification";
-
-const baseClass = "confirm-invite-page";
+import useInviteVerification from "hooks/useInviteVerification";
 
 interface IConfirmInvitePageProps {
   router: InjectedRouter;
   params: Params;
 }
 
+const baseClass = "confirm-invite-page";
+
 const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
+  const { invite_token } = params;
   const { currentUser } = useContext(AppContext);
   const { renderFlash } = useContext(NotificationContext);
-  const { invite_token } = params;
 
   const {
     data: validInvite,
@@ -43,11 +43,11 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
 
       try {
         await usersAPI.create(dataForAPI);
-        router.push(paths.LOGIN);
         renderFlash(
           "success",
-          "Registration successful! For security purposes, please log in."
+          "Account created successfully. Please sign in."
         );
+        router.push(paths.LOGIN);
       } catch (error) {
         const reason = getErrorReason(error);
         console.error(reason);
@@ -56,6 +56,11 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
     },
     [invite_token, renderFlash, router, validInvite?.email]
   );
+
+  if (currentUser) {
+    router.push(paths.DASHBOARD);
+    return <></>;
+  }
 
   const renderContent = () => {
     if (isVerifyingInvite) {
@@ -85,11 +90,6 @@ const ConfirmInvitePage = ({ router, params }: IConfirmInvitePageProps) => {
       </>
     );
   };
-
-  if (currentUser) {
-    router.push(paths.DASHBOARD);
-    return null;
-  }
 
   return (
     <AuthenticationFormWrapper

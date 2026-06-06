@@ -1,16 +1,19 @@
 import { useQuery } from "react-query";
 import { AxiosError } from "axios";
+
 import inviteAPI, { IValidateInviteResponse } from "services/entities/invites";
 import { IInvite } from "interfaces/invite";
 import { DEFAULT_USE_QUERY_OPTIONS } from "utilities/constants";
 
-export const useInviteVerification = (inviteToken: string) => {
-    const { data, error, isLoading } = useQuery<
-        IValidateInviteResponse,
-        AxiosError,
-        IInvite
-    >(
-        "invite",
+interface IUseInviteVerificationReturn {
+    data: IInvite | undefined;
+    isLoading: boolean;
+    error: AxiosError | null;
+}
+
+const useInviteVerification = (inviteToken: string): IUseInviteVerificationReturn => {
+    const { data, isLoading, error } = useQuery<IValidateInviteResponse, AxiosError, IInvite>(
+        ["invite", inviteToken],
         () => inviteAPI.verify(inviteToken),
         {
             ...DEFAULT_USE_QUERY_OPTIONS,
@@ -19,5 +22,7 @@ export const useInviteVerification = (inviteToken: string) => {
         }
     );
 
-    return { data, error, isLoading };
+    return { data, isLoading, error };
 };
+
+export default useInviteVerification;

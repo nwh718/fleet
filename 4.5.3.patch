@@ -1,9 +1,3 @@
-diff --git a/changes.patch b/changes.patch
-new file mode 100644
-index 0000000000..bc1aaf29d9
---- /dev/null
-+++ b/changes.patch
-@@ -0,0 +1,192 @@
 +diff --git a/frontend/hooks/useInviteVerification.ts b/frontend/hooks/useInviteVerification.ts
 +new file mode 100644
 +index 0000000..abcdef1
