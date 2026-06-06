@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
-
 	"github.com/fleetdm/fleet/v4/server/contexts/ctxerr"
 	"github.com/fleetdm/fleet/v4/server/contexts/viewer"
 	"github.com/fleetdm/fleet/v4/server/fleet"
@@ -317,17 +316,6 @@ func (svc *Service) validateInHouseAppInstallToken(
 		return nil, ctxerr.Wrap(ctx, err, "lookup in-house app install token")
 	}
 	if meta.SoftwareTitleID != urlTitleID {
-		svc.logger.WarnContext(ctx, "in-house app install token title mismatch",
-			"url_title_id", urlTitleID,
-			"token_title_id", meta.SoftwareTitleID,
-			"host_id", meta.HostID)
-		return nil, fleet.NewPermissionError("invalid token")
-	}
-	return meta, nil
-}
-
-// inHouseTeamIDPtr maps stored team_id (0 == no team) back to *uint.
-func inHouseTeamIDPtr(teamID uint) *uint {
 	if teamID == 0 {
 		return nil
 	}
