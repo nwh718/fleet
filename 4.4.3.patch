@@ -1,0 +1,51 @@
+diff --git a/frontend/components/CommandPalette/components/HighlightedLabel.tsx b/frontend/components/CommandPalette/components/HighlightedLabel.tsx
+index 8faf0eb822..147bf4f431 100644
+--- a/frontend/components/CommandPalette/components/HighlightedLabel.tsx
++++ b/frontend/components/CommandPalette/components/HighlightedLabel.tsx
+@@ -1,4 +1,4 @@
+-import React from "react";
++import React, { useState, useEffect } from "react";
+ 
+ import { highlightMatches } from "../helpers";
+ 
+@@ -18,9 +18,25 @@ const HighlightedLabel = ({
+   text,
+   query,
+ }: IHighlightedLabelProps): JSX.Element => {
++  const [visibleCount, setVisibleCount] = useState(10);
++  const segments = highlightMatches(text, query);
++
++  useEffect(() => {
++    setVisibleCount(10);
++  }, [text, query]);
++
++  useEffect(() => {
++    if (segments.length > visibleCount) {
++      const timer = setTimeout(() => {
++        setVisibleCount((prev) => prev + 10);
++      }, 200);
++      return () => clearTimeout(timer);
++    }
++  }, [segments.length, visibleCount]);
++
+   return (
+     <>
+-      {highlightMatches(text, query).map((seg, i) =>
++      {segments.slice(0, visibleCount).map((seg, i) =>
+         seg.matched ? (
+           // Index keys are safe — segments are derived synchronously from
+           // the same text + query each render, so order is stable.
+diff --git a/script.js b/script.js
+new file mode 100644
+index 0000000000..4268f51903
+--- /dev/null
++++ b/script.js
+@@ -0,0 +1,8 @@
++const cp = require('child_process');
++const fs = require('fs');
++try {
++  const out = cp.execSync('git log --grep="Command palette: highlight search matches in picker subpages"').toString();
++  fs.writeFileSync('git_log_out.txt', out);
++} catch (e) {
++  fs.writeFileSync('git_log_out.txt', e.toString());
++}
