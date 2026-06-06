@@ -1,0 +1,480 @@
+import React from "react";
+import { screen, waitFor } from "@testing-library/react";
+import { createCustomRenderer, createMockRouter } from "test/test-utils";
+
+import softwareAPI from "services/entities/software";
+import {
+    createMockSoftwareTitlesResponse,
+    createMockSoftwareTitle,
+    createMockSoftwareVersionsResponse,
+    createMockSoftwareVersion,
+    createMockSoftwarePackage,
+} from "__mocks__/softwareMock";
+
+import SoftwareInventory from "../SoftwareInventory";
+
+jest.mock("services/entities/software", () => ({
+    __esModule: true,
+    default: {
+        getSoftwareTitles: jest.fn(),
+        getSoftwareVersions: jest.fn(),
+    },
+}));
+
+const mockedSoftware = softwareAPI as jest.Mocked<typeof softwareAPI>;
+
+const render = createCustomRenderer({ withBackendMock: true });
+const mockRouter = createMockRouter();
+
+const defaultProps = {
+    router: mockRouter,
+    isSoftwareEnabled: true,
+    query: "",
+    perPage: 50,
+    orderDirection: "asc" as const,
+    orderKey: "hosts_count",
+    currentPage: 0,
+    teamId: 1,
+    onAddFiltersClick: jest.fn(),
+    vulnFilters: {
+        vulnerable: false,
+        exploit: false,
+        min_cvss_score: undefined,
+        max_cvss_score: undefined,
+    },
+};
+
+const setLocationPathname = (pathname: string) => {
+    window.history.pushState({}, "", pathname);
+};
+
+const mockTitlesResponse = createMockSoftwareTitlesResponse({
+    counts_updated_at: "2024-01-01T00:00:00Z",
+    count: 1,
+    software_titles: [
+        createMockSoftwareTitle({
+            id: 1,
+            name: "PowerShell",
+            versions_count: 1,
+            source: "apps",
+            hosts_count: 5,
+            software_package: createMockSoftwarePackage({
+                name: "PowerShell-7.4.0.msi",
+                version: "7.4.0",
+                install_script:
+                    "msiexec /i $INSTALLER_PATH /quiet /norestart",
+                uninstall_script:
+                    "msiexec /x $PACKAGE_ID /quiet /norestart",
+                pre_install_query: "SELECT 1 FROM os_version WHERE platform = 'windows'",
+                post_install_script: "Write-Host 'PowerShell installed successfully'",
+            }),
+        }),
+    ],
+});
+
+const mockVersionsResponse = createMockSoftwareVersionsResponse({
+    counts_updated_at: "2024-01-01T00:00:00Z",
+    count: 1,
+    software: [
+        createMockSoftwareVersion({
+            id: 1,
+            name: "PowerShell",
+            version: "7.4.0",
+            source: "apps",
+            hosts_count: 5,
+            display_name: "PowerShell 7-x64",
+            vendor: "Microsoft Corporation",
+        }),
+    ],
+});
+
+const mockFMAInstallScriptsResponse = createMockSoftwareTitlesResponse({
+    counts_updated_at: "2024-01-01T00:00:00Z",
+    count: 2,
+    software_titles: [
+        createMockSoftwareTitle({
+            id: 10,
+            name: "Figma",
+            versions_count: 1,
+            source: "apps",
+            hosts_count: 3,
+            software_package: createMockSoftwarePackage({
+                name: "Figma.exe",
+                version: "116.10.3",
+                install_script:
+                    '$INSTALLER_PATH = $env:INSTALLER_PATH\nStart-Process -FilePath "$INSTALLER_PATH" -ArgumentList "/S" -Wait',
+                uninstall_script:
+                    '$app = Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -like "*Figma*" }\n$app.Uninstall()',
+                pre_install_query: "SELECT 1 FROM os_version WHERE platform = 'windows'",
+                post_install_script: "Write-Host 'Figma installed successfully'",
+            }),
+        }),
+        createMockSoftwareTitle({
+            id: 11,
+            name: "PowerToys",
+            versions_count: 1,
+            source: "apps",
+            hosts_count: 8,
+            software_package: createMockSoftwarePackage({
+                name: "PowerToys.exe",
+                version: "0.87.1",
+                install_script:
+                    '$INSTALLER_PATH = $env:INSTALLER_PATH\nStart-Process -FilePath "$INSTALLER_PATH" -ArgumentList "/silent /install" -Wait',
+                uninstall_script:
+                    'Get-Process -Name "PowerToys*" -ErrorAction SilentlyContinue | Stop-Process -Force\nRemove-Item -Path "$env:LOCALAPPDATA\\PowerToys" -Recurse -Force -ErrorAction SilentlyContinue',
+                pre_install_query: "SELECT 1 FROM os_version WHERE platform = 'windows'",
+                post_install_script: "Write-Host 'PowerToys installed successfully'",
+            }),
+        }),
+    ],
+});
+
+beforeEach(() => {
+    setLocationPathname("/software/inventory");
+
+    jest.clearAllMocks();
+
+    mockedSoftware.getSoftwareTitles.mockResolvedValue(
+        createMockSoftwareTitlesResponse({
+            count: 0,
+            counts_updated_at: null,
+            software_titles: [],
+        })
+    );
+    mockedSoftware.getSoftwareVersions.mockResolvedValue(
+        createMockSoftwareVersionsResponse({
+            count: 0,
+            software: [],
+        })
+    );
+});
+
+describe("SoftwareInventory", () => {
+    describe("PowerShell methods mock", () => {
+        it("correctly mocks getSoftwareTitles and returns PowerShell FMA data", async () => {
+            mockedSoftware.getSoftwareTitles.mockResolvedValue(mockTitlesResponse);
+
+            render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(mockedSoftware.getSoftwareTitles).toHaveBeenCalledTimes(1);
+            });
+
+            expect(mockedSoftware.getSoftwareTitles).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    page: 0,
+                    perPage: 50,
+                    query: "",
+                    orderDirection: "asc",
+                    orderKey: "hosts_count",
+                    teamId: 1,
+                })
+            );
+
+            await waitFor(() => {
+                expect(screen.getByText("PowerShell")).toBeInTheDocument();
+                expect(screen.getByText("1 item")).toBeInTheDocument();
+            });
+        });
+
+        it("correctly mocks getSoftwareVersions and returns version data", async () => {
+            setLocationPathname("/software/versions");
+            mockedSoftware.getSoftwareVersions.mockResolvedValue(mockVersionsResponse);
+
+            render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(mockedSoftware.getSoftwareVersions).toHaveBeenCalledTimes(1);
+            });
+
+            expect(mockedSoftware.getSoftwareVersions).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    page: 0,
+                    perPage: 50,
+                    query: "",
+                    orderDirection: "asc",
+                    orderKey: "hosts_count",
+                    teamId: 1,
+                })
+            );
+
+            await waitFor(() => {
+                expect(screen.getByText("PowerShell")).toBeInTheDocument();
+                expect(screen.getByText("1 item")).toBeInTheDocument();
+            });
+        });
+
+        it("queries availableForInstall when versions view is empty", async () => {
+            setLocationPathname("/software/versions");
+            mockedSoftware.getSoftwareVersions.mockResolvedValue(
+                createMockSoftwareVersionsResponse({
+                    count: 0,
+                    software: [],
+                })
+            );
+            mockedSoftware.getSoftwareTitles.mockResolvedValue(
+                createMockSoftwareTitlesResponse({
+                    count: 1,
+                    software_titles: [
+                        createMockSoftwareTitle({
+                            id: 1,
+                            name: "PowerShell",
+                            software_package: createMockSoftwarePackage({
+                                install_script:
+                                    "msiexec /i $INSTALLER_PATH /quiet /norestart",
+                            }),
+                        }),
+                    ],
+                })
+            );
+
+            render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(mockedSoftware.getSoftwareTitles).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        availableForInstall: true,
+                    })
+                );
+            });
+        });
+
+        it("returns PowerShell install scripts in FMA software packages", async () => {
+            mockedSoftware.getSoftwareTitles.mockResolvedValue(
+                mockFMAInstallScriptsResponse
+            );
+
+            render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(screen.getByText("Figma")).toBeInTheDocument();
+                expect(screen.getByText("PowerToys")).toBeInTheDocument();
+                expect(screen.getByText("2 items")).toBeInTheDocument();
+            });
+
+            const calledWith = mockedSoftware.getSoftwareTitles.mock.calls[0][0];
+            expect(calledWith).toEqual(
+                expect.objectContaining({
+                    page: 0,
+                    perPage: 50,
+                    query: "",
+                    orderDirection: "asc",
+                    orderKey: "hosts_count",
+                    teamId: 1,
+                })
+            );
+        });
+    });
+
+    describe("Click operations", () => {
+        it("renders the Show versions slider and triggers router on toggle", async () => {
+            mockedSoftware.getSoftwareTitles.mockResolvedValue(mockTitlesResponse);
+
+            const { user } = render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(screen.getByText("Show versions")).toBeInTheDocument();
+            });
+
+            const slider = screen.getByText("Show versions");
+            await user.click(slider);
+
+            expect(mockRouter.replace).toHaveBeenCalledWith(
+                expect.stringContaining("/software/versions")
+            );
+        });
+
+        it("renders the Add filters button and triggers callback on click", async () => {
+            const onAddFiltersClick = jest.fn();
+            mockedSoftware.getSoftwareTitles.mockResolvedValue(mockTitlesResponse);
+
+            const { user } = render(
+                <SoftwareInventory
+                    {...defaultProps}
+                    onAddFiltersClick={onAddFiltersClick}
+                />
+            );
+
+            await waitFor(() => {
+                expect(
+                    screen.getByRole("button", { name: /add filters/i })
+                ).toBeInTheDocument();
+            });
+
+            const addFiltersButton = screen.getByRole("button", {
+                name: /add filters/i,
+            });
+            await user.click(addFiltersButton);
+
+            expect(onAddFiltersClick).toHaveBeenCalledTimes(1);
+        });
+
+        it("navigates to software title details on row click", async () => {
+            mockedSoftware.getSoftwareTitles.mockResolvedValue(mockTitlesResponse);
+
+            const { user } = render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(screen.getByText("PowerShell")).toBeInTheDocument();
+            });
+
+            const nameLink = screen.getByText("PowerShell");
+            await user.click(nameLink);
+
+            expect(mockRouter.push).toHaveBeenCalledWith(
+                expect.stringContaining("/software/titles/1")
+            );
+        });
+    });
+
+    describe("Conditional button display based on device type", () => {
+        it("renders Windows FMA with PowerShell install script in software package", async () => {
+            const windowsFMATitle = createMockSoftwareTitle({
+                id: 1,
+                name: "PowerShell 7",
+                versions_count: 1,
+                source: "apps",
+                hosts_count: 5,
+                software_package: createMockSoftwarePackage({
+                    name: "PowerShell-7.4.0.msi",
+                    version: "7.4.0",
+                    install_script:
+                        "msiexec /i $INSTALLER_PATH /quiet /norestart",
+                    uninstall_script:
+                        "msiexec /x $PACKAGE_ID /quiet /norestart",
+                    pre_install_query:
+                        "SELECT 1 FROM os_version WHERE platform = 'windows'",
+                    post_install_script:
+                        "Write-Host 'PowerShell installed successfully'",
+                }),
+            });
+
+            mockedSoftware.getSoftwareTitles.mockResolvedValue(
+                createMockSoftwareTitlesResponse({
+                    counts_updated_at: "2024-01-01T00:00:00Z",
+                    count: 1,
+                    software_titles: [windowsFMATitle],
+                })
+            );
+
+            render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(screen.getByText("PowerShell 7")).toBeInTheDocument();
+            });
+
+            await waitFor(() => {
+                expect(screen.getByText("1 item")).toBeInTheDocument();
+            });
+        });
+
+        it("renders table with correct columns for titles view", async () => {
+            mockedSoftware.getSoftwareTitles.mockResolvedValue(mockTitlesResponse);
+
+            render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(screen.getByText("Name")).toBeInTheDocument();
+                expect(screen.getByText("Version")).toBeInTheDocument();
+                expect(screen.getByText("Type")).toBeInTheDocument();
+                expect(screen.getByText("Vulnerabilities")).toBeInTheDocument();
+            });
+        });
+
+        it("renders table with correct columns for versions view", async () => {
+            setLocationPathname("/software/versions");
+            mockedSoftware.getSoftwareVersions.mockResolvedValue(mockVersionsResponse);
+
+            render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(screen.getByText("Name")).toBeInTheDocument();
+                expect(screen.getByText("Version")).toBeInTheDocument();
+                expect(screen.getByText("Hosts")).toBeInTheDocument();
+            });
+        });
+
+        it("shows installable software empty state when FMA apps exist but no versions", async () => {
+            setLocationPathname("/software/versions");
+            mockedSoftware.getSoftwareVersions.mockResolvedValue(
+                createMockSoftwareVersionsResponse({
+                    count: 0,
+                    software: [],
+                })
+            );
+            mockedSoftware.getSoftwareTitles.mockResolvedValue(
+                createMockSoftwareTitlesResponse({
+                    count: 3,
+                    software_titles: [
+                        createMockSoftwareTitle({
+                            id: 1,
+                            name: "PowerShell",
+                            software_package: createMockSoftwarePackage({
+                                install_script:
+                                    "msiexec /i $INSTALLER_PATH /quiet /norestart",
+                            }),
+                        }),
+                    ],
+                })
+            );
+
+            render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(
+                    screen.getByText("Install software on your hosts to see versions.")
+                ).toBeInTheDocument();
+            });
+        });
+
+        it("shows empty state when no installable software exists", async () => {
+            setLocationPathname("/software/versions");
+            mockedSoftware.getSoftwareVersions.mockResolvedValue(
+                createMockSoftwareVersionsResponse({
+                    count: 0,
+                    software: [],
+                })
+            );
+            mockedSoftware.getSoftwareTitles.mockResolvedValue(
+                createMockSoftwareTitlesResponse({
+                    count: 0,
+                    software_titles: [],
+                })
+            );
+
+            render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(
+                    screen.getByText(
+                        "Expecting to see software? Check back later."
+                    )
+                ).toBeInTheDocument();
+            });
+        });
+    });
+
+    describe("Loading and error states", () => {
+        it("renders a spinner while loading", () => {
+            mockedSoftware.getSoftwareTitles.mockReturnValue(
+                new Promise(() => { })
+            );
+
+            render(<SoftwareInventory {...defaultProps} />);
+
+            expect(screen.getByTestId("spinner")).toBeInTheDocument();
+        });
+
+        it("renders an error state when the titles query fails", async () => {
+            mockedSoftware.getSoftwareTitles.mockRejectedValue(
+                new Error("Network error")
+            );
+
+            render(<SoftwareInventory {...defaultProps} />);
+
+            await waitFor(() => {
+                expect(screen.getByText("Something's gone wrong.")).toBeInTheDocument();
+            });
+        });
+    });
+});
