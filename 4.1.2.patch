@@ -1,0 +1,36 @@
+diff --git a/ee/server/service/install_token.go b/ee/server/service/install_token.go
+new file mode 100644
+index 000000000..2af7d1c4b
+--- /dev/null
++++ b/ee/server/service/install_token.go
+@@ -0,0 +1,28 @@
++package service
++
++import (
++	"crypto/sha256"
++	"crypto/subtle"
++	"encoding/hex"
++
++	"github.com/fleetdm/fleet/v4/server/fleet"
++)
++
++func VerifyInstallToken(token string, deviceUDID string) (bool, error) {
++	if len(token) != sha256.Size*2 {
++		return false, fleet.NewPermissionError("invalid token")
++	}
++	if deviceUDID == "" {
++		return false, fleet.NewPermissionError("invalid token")
++	}
++
++	tokenBytes, err := hex.DecodeString(token)
++	if err != nil {
++		return false, fleet.NewPermissionError("invalid token")
++	}
++
++	expected := sha256.Sum256([]byte(deviceUDID))
++	if subtle.ConstantTimeCompare(tokenBytes, expected[:]) != 1 {
++		return false, fleet.NewPermissionError("invalid token")
++	}
++
++	return true, nil
++}
