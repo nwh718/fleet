@@ -317,7 +317,8 @@ export interface IHighlightSegment {
 
 export const highlightMatches = (
   text: string,
-  query: string
+  query: string,
+  maxMatches: number = Infinity
 ): IHighlightSegment[] => {
   if (!text) return [{ text: "", matched: false }];
   // NFD-decompose, drop combining marks, lowercase. Mirrors
@@ -361,15 +362,18 @@ export const highlightMatches = (
   lowerToOrigEnd.push(text.length);
 
   const ranges: Array<[number, number]> = [];
+  let collectedMatches = 0;
   needles.forEach((needle) => {
+    if (collectedMatches >= maxMatches) return;
     let idx = textLower.indexOf(needle);
-    while (idx !== -1) {
+    while (idx !== -1 && collectedMatches < maxMatches) {
       const lowerEnd = idx + needle.length;
       // Translate to original-text coords. lowerToOrigEnd already
       // accounts for surrogate-pair widths and length-changing folds.
       const origStart = lowerToOrigStart[idx];
       const origEnd = lowerToOrigEnd[lowerEnd - 1];
       ranges.push([origStart, origEnd]);
+      collectedMatches++;
       idx = textLower.indexOf(needle, lowerEnd);
     }
   });
