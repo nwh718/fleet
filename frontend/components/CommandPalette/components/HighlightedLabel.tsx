@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 import { highlightMatches } from "../helpers";
 
@@ -18,9 +18,25 @@ const HighlightedLabel = ({
   text,
   query,
 }: IHighlightedLabelProps): JSX.Element => {
+  const [visibleCount, setVisibleCount] = useState(10);
+  const segments = highlightMatches(text, query);
+
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [text, query]);
+
+  useEffect(() => {
+    if (segments.length > visibleCount) {
+      const timer = setTimeout(() => {
+        setVisibleCount((prev) => prev + 10);
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [segments.length, visibleCount]);
+
   return (
     <>
-      {highlightMatches(text, query).map((seg, i) =>
+      {segments.slice(0, visibleCount).map((seg, i) =>
         seg.matched ? (
           // Index keys are safe — segments are derived synchronously from
           // the same text + query each render, so order is stable.
