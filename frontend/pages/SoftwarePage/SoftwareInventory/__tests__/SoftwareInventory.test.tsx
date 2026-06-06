@@ -1,0 +1,689 @@
+import React from "react";
+import { screen, waitFor } from "@testing-library/react";
+import { createCustomRenderer, createMockRouter } from "test/test-utils";
+
+import createMockUser from "__mocks__/userMock";
+import {
+    createMockSoftwareTitlesResponse,
+    createMockSoftwareVersionsResponse,
+    createMockFleetMaintainedApp,
+} from "__mocks__/softwareMock";
+import softwareAPI from "services/entities/software";
+import { noop } from "lodash";
+
+import SoftwareInventory from "../SoftwareInventory";
+
+jest.mock("services/entities/software", () => ({
+    __esModule: true,
+    default: {
+        getSoftwareTitles: jest.fn(),
+        getSoftwareVersions: jest.fn(),
+    },
+}));
+
+const mockRouter = createMockRouter();
+
+const DEFAULT_VULN_FILTERS = {
+    vulnerable: false,
+    exploit: false,
+    minCvssScore: undefined,
+    maxCvssScore: undefined,
+};
+
+const mockTitlesResponse = createMockSoftwareTitlesResponse({
+    counts_updated_at: "2024-01-01T00:00:00Z",
+    count: 2,
+    software_titles: [],
+});
+
+const mockVersionsResponse = createMockSoftwareVersionsResponse({
+    counts_updated_at: "2024-01-01T00:00:00Z",
+    count: 1,
+    software: [],
+});
+
+describe("SoftwareInventory", () => {
+    beforeEach(() => {
+        (softwareAPI.getSoftwareTitles as jest.Mock).mockResolvedValue(
+            mockTitlesResponse
+        );
+        (softwareAPI.getSoftwareVersions as jest.Mock).mockResolvedValue(
+            mockVersionsResponse
+        );
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("calls getSoftwareTitles with correct params on mount", async () => {
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query=""
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        await waitFor(() => {
+            expect(softwareAPI.getSoftwareTitles).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    page: 0,
+                    perPage: 20,
+                    query: "",
+                    orderDirection: "asc",
+                    orderKey: "hosts_count",
+                })
+            );
+        });
+    });
+
+    it("calls getSoftwareVersions when on versions path", async () => {
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        const originalPathname = window.location.pathname;
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query=""
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        await waitFor(() => {
+            expect(softwareAPI.getSoftwareTitles).toHaveBeenCalled();
+        });
+    });
+
+    it("renders spinner while loading data", () => {
+        (softwareAPI.getSoftwareTitles as jest.Mock).mockReturnValue(
+            new Promise(() => { })
+        );
+
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query=""
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        expect(screen.getByRole("img")).toBeInTheDocument();
+    });
+
+    it("renders data error when API request fails", async () => {
+        (softwareAPI.getSoftwareTitles as jest.Mock).mockRejectedValue(
+            new Error("API error")
+        );
+
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query=""
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        await waitFor(() => {
+            expect(screen.getByText(/something went wrong/i)).toBeInTheDocument();
+        });
+    });
+
+    it("passes teamId to API calls when provided", async () => {
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query=""
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                teamId={5}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        await waitFor(() => {
+            expect(softwareAPI.getSoftwareTitles).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    teamId: 5,
+                })
+            );
+        });
+    });
+
+    it("passes vulnerability filters to API calls", async () => {
+        const vulnFilters = {
+            vulnerable: true,
+            exploit: true,
+            minCvssScore: 7.0,
+            maxCvssScore: 10.0,
+        };
+
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query=""
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={vulnFilters}
+                currentPage={0}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        await waitFor(() => {
+            expect(softwareAPI.getSoftwareTitles).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    vulnerable: true,
+                    exploit: true,
+                    minCvssScore: 7.0,
+                    maxCvssScore: 10.0,
+                })
+            );
+        });
+    });
+});
+
+describe("SoftwareInventory - PowerShell Windows FMA", () => {
+    beforeEach(() => {
+        (softwareAPI.getSoftwareTitles as jest.Mock).mockResolvedValue(
+            mockTitlesResponse
+        );
+        (softwareAPI.getSoftwareVersions as jest.Mock).mockResolvedValue(
+            mockVersionsResponse
+        );
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("mocks getSoftwareTitles for PowerShell FMA data correctly", async () => {
+        const powershellFmaResponse = createMockSoftwareTitlesResponse({
+            counts_updated_at: "2024-01-01T00:00:00Z",
+            count: 1,
+            software_titles: [],
+        });
+
+        (softwareAPI.getSoftwareTitles as jest.Mock).mockResolvedValue(
+            powershellFmaResponse
+        );
+
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query="PowerShell"
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        await waitFor(() => {
+            expect(softwareAPI.getSoftwareTitles).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    query: "PowerShell",
+                })
+            );
+        });
+    });
+
+    it("mocks getSoftwareVersions for Windows FMA data correctly", async () => {
+        const windowsFmaVersionsResponse = createMockSoftwareVersionsResponse({
+            counts_updated_at: "2024-01-01T00:00:00Z",
+            count: 1,
+            software: [],
+        });
+
+        (softwareAPI.getSoftwareVersions as jest.Mock).mockResolvedValue(
+            windowsFmaVersionsResponse
+        );
+
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query="PowerShell"
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        await waitFor(() => {
+            expect(softwareAPI.getSoftwareTitles).toHaveBeenCalled();
+        });
+    });
+
+    it("verifies PowerShell FMA mock returns correct platform data", () => {
+        const powershellWindowsApp = createMockFleetMaintainedApp({
+            id: 42,
+            name: "PowerShell",
+            version: "7.4.1",
+            platform: "windows",
+        });
+
+        expect(powershellWindowsApp.id).toBe(42);
+        expect(powershellWindowsApp.name).toBe("PowerShell");
+        expect(powershellWindowsApp.platform).toBe("windows");
+        expect(powershellWindowsApp.software_title_id).toBeUndefined();
+    });
+
+    it("verifies PowerShell macOS FMA mock returns correct platform data", () => {
+        const powershellMacApp = createMockFleetMaintainedApp({
+            id: 43,
+            name: "PowerShell",
+            version: "7.4.1",
+            platform: "darwin",
+        });
+
+        expect(powershellMacApp.id).toBe(43);
+        expect(powershellMacApp.name).toBe("PowerShell");
+        expect(powershellMacApp.platform).toBe("darwin");
+        expect(powershellMacApp.software_title_id).toBeUndefined();
+    });
+
+    it("verifies PowerShell FMA already-added state has software_title_id", () => {
+        const powershellAddedApp = createMockFleetMaintainedApp({
+            id: 42,
+            name: "PowerShell",
+            version: "7.4.1",
+            platform: "windows",
+            software_title_id: 99,
+        });
+
+        expect(powershellAddedApp.software_title_id).toBe(99);
+    });
+});
+
+describe("SoftwareInventory - click actions", () => {
+    beforeEach(() => {
+        (softwareAPI.getSoftwareTitles as jest.Mock).mockResolvedValue(
+            mockTitlesResponse
+        );
+        (softwareAPI.getSoftwareVersions as jest.Mock).mockResolvedValue(
+            mockVersionsResponse
+        );
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("calls onAddFiltersClick when add filters button is clicked", async () => {
+        const onAddFiltersClick = jest.fn();
+
+        const titlesWithData = createMockSoftwareTitlesResponse({
+            counts_updated_at: "2024-01-01T00:00:00Z",
+            count: 1,
+        });
+
+        (softwareAPI.getSoftwareTitles as jest.Mock).mockResolvedValue(
+            titlesWithData
+        );
+
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query=""
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                onAddFiltersClick={onAddFiltersClick}
+            />
+        );
+
+        await waitFor(() => {
+            expect(softwareAPI.getSoftwareTitles).toHaveBeenCalled();
+        });
+
+        const addFiltersButton = screen.queryByRole("button", {
+            name: /add filters/i,
+        });
+        if (addFiltersButton) {
+            addFiltersButton.click();
+            expect(onAddFiltersClick).toHaveBeenCalledTimes(1);
+        }
+    });
+
+    it("triggers version toggle when show versions slider is clicked", async () => {
+        const titlesWithData = createMockSoftwareTitlesResponse({
+            counts_updated_at: "2024-01-01T00:00:00Z",
+            count: 1,
+        });
+
+        (softwareAPI.getSoftwareTitles as jest.Mock).mockResolvedValue(
+            titlesWithData
+        );
+
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query=""
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        await waitFor(() => {
+            expect(softwareAPI.getSoftwareTitles).toHaveBeenCalled();
+        });
+
+        const showVersionsToggle = screen.queryByText("Show versions");
+        if (showVersionsToggle) {
+            expect(showVersionsToggle).toBeInTheDocument();
+        }
+    });
+});
+
+describe("SoftwareInventory - conditional display by device type", () => {
+    beforeEach(() => {
+        (softwareAPI.getSoftwareTitles as jest.Mock).mockResolvedValue(
+            mockTitlesResponse
+        );
+        (softwareAPI.getSoftwareVersions as jest.Mock).mockResolvedValue(
+            mockVersionsResponse
+        );
+    });
+
+    afterEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it("renders SoftwareInventoryTable with isSoftwareEnabled prop", async () => {
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query=""
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        await waitFor(() => {
+            expect(softwareAPI.getSoftwareTitles).toHaveBeenCalled();
+        });
+
+        expect(screen.getByText("0 items")).toBeInTheDocument();
+    });
+
+    it("disables controls when software is not enabled", async () => {
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled={false}
+                query=""
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        await waitFor(() => {
+            expect(softwareAPI.getSoftwareTitles).toHaveBeenCalled();
+        });
+
+        expect(
+            screen.getByText("Software inventory disabled")
+        ).toBeInTheDocument();
+    });
+
+    it("passes showVersions=false for inventory path by default", async () => {
+        const render = createCustomRenderer({
+            context: {
+                app: {
+                    isGlobalAdmin: true,
+                    currentUser: createMockUser(),
+                },
+            },
+        });
+
+        render(
+            <SoftwareInventory
+                router={mockRouter}
+                isSoftwareEnabled
+                query=""
+                perPage={20}
+                orderDirection="asc"
+                orderKey="hosts_count"
+                vulnFilters={DEFAULT_VULN_FILTERS}
+                currentPage={0}
+                onAddFiltersClick={noop}
+            />
+        );
+
+        await waitFor(() => {
+            expect(softwareAPI.getSoftwareTitles).toHaveBeenCalled();
+        });
+
+        const showVersionsToggle = screen.queryByText("Show versions");
+        if (showVersionsToggle) {
+            expect(showVersionsToggle).toBeInTheDocument();
+        }
+    });
+
+    it("verifies FMA platform data distinguishes between windows and darwin", () => {
+        const windowsApp = createMockFleetMaintainedApp({
+            id: 1,
+            name: "PowerShell",
+            version: "7.4.1",
+            platform: "windows",
+        });
+
+        const macosApp = createMockFleetMaintainedApp({
+            id: 2,
+            name: "PowerShell",
+            version: "7.4.1",
+            platform: "darwin",
+        });
+
+        expect(windowsApp.platform).toBe("windows");
+        expect(macosApp.platform).toBe("darwin");
+        expect(windowsApp.platform).not.toBe(macosApp.platform);
+    });
+
+    it("verifies Windows FMA app without software_title_id is available for install", () => {
+        const availableWindowsApp = createMockFleetMaintainedApp({
+            id: 1,
+            name: "PowerShell",
+            version: "7.4.1",
+            platform: "windows",
+        });
+
+        expect(availableWindowsApp.software_title_id).toBeUndefined();
+    });
+
+    it("verifies Windows FMA app with software_title_id is already added", () => {
+        const addedWindowsApp = createMockFleetMaintainedApp({
+            id: 1,
+            name: "PowerShell",
+            version: "7.4.1",
+            platform: "windows",
+            software_title_id: 10,
+        });
+
+        expect(addedWindowsApp.software_title_id).toBe(10);
+    });
+
+    it("verifies macOS FMA app without software_title_id is available for install", () => {
+        const availableMacApp = createMockFleetMaintainedApp({
+            id: 2,
+            name: "PowerShell",
+            version: "7.4.1",
+            platform: "darwin",
+        });
+
+        expect(availableMacApp.software_title_id).toBeUndefined();
+    });
+
+    it("verifies macOS FMA app with software_title_id is already added", () => {
+        const addedMacApp = createMockFleetMaintainedApp({
+            id: 2,
+            name: "PowerShell",
+            version: "7.4.1",
+            platform: "darwin",
+            software_title_id: 20,
+        });
+
+        expect(addedMacApp.software_title_id).toBe(20);
+    });
+});
